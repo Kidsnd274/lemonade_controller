@@ -14,7 +14,7 @@ class ModelCard extends StatelessWidget {
         child: ListTile(
           title: Row(
             children: [
-              if (model.isUserModel)
+              if (model.isUserModel) ...[
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 4,
@@ -31,11 +31,33 @@ class ModelCard extends StatelessWidget {
                     ),
                   ),
                 ),
-              const SizedBox(width: 4),
+                const SizedBox(width: 4),
+              ],
+
               Text(
                 model.displayName,
                 style: Theme.of(context).textTheme.labelLarge,
               ),
+
+              if (model.isUserModel) ...[
+                const SizedBox(width: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.secondary,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    model.quantization,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSecondary,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
           subtitle: Text(
