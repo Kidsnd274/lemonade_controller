@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-
-import '../models/lemonade_model.dart';
+import 'package:lemonade_controller/models/lemonade_model.dart';
 
 class ModelCard extends StatelessWidget {
   final LemonadeModel model;

@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:dio/dio.dart';
 import 'package:lemonade_controller/models/lemonade_model.dart';
 import 'package:lemonade_controller/services/api_client.dart';
-import 'package:lemonade_controller/widgets/model_card.dart';
+import 'package:lemonade_controller/pages/models/widgets/model_card.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key, required this.title});
@@ -15,7 +14,6 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   String result = "empty";
-  final Dio dio = Dio();
   final LemonadeApiClient apiClient = LemonadeApiClient();
 
   List<LemonadeModel> modelList = [];

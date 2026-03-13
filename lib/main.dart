@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:lemonade_controller/screens/home/home_page.dart';
+import 'package:lemonade_controller/pages/home/home_page.dart';
+import 'package:lemonade_controller/pages/settings/settings_page.dart';
+import 'package:lemonade_controller/services/settings_service.dart';
 import 'package:logger/logger.dart';
 
 void main() {
@@ -8,18 +10,23 @@ void main() {
   // Set the desired log level
   Logger.level = Level.debug;
 
-  runApp(const LemonadeController());
+  runApp(LemonadeController());
 }
 
 class LemonadeController extends StatelessWidget {
-  const LemonadeController({super.key});
+  final SettingsService settings;
+
+  LemonadeController({super.key}) : settings = SettingsService();
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Lemonade Controller',
       theme: ThemeData(colorScheme: .fromSeed(seedColor: Colors.blue)),
-      home: const HomePage(title: 'Home'),
+      home: HomePage(title: 'Home'),
+      routes: {
+        '/settings': (context) => SettingsPage(settings: settings),
+      },
     );
   }
 }
