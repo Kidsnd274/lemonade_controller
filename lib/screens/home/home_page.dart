@@ -32,16 +32,7 @@ class _HomePageState extends State<HomePage> {
         throw Exception("Expected a list of models");
       }
 
-      for (var i = 0; i < response.length; i++) {
-        final item = response[i];
-        // if (item == null) continue;
-        // final Map<String, dynamic> json = item;
-        // final LemonadeModel model = LemonadeModel.fromJson(json);
-        // modelList.add(model);
-        if (item is! Map<String, dynamic>) continue;
-        final LemonadeModel model = LemonadeModel.fromJson(item);
-        modelList.add(model);
-      }
+      modelList = response.map((json) => LemonadeModel.fromJson(json)).toList();
 
       setState(() {
         result =
