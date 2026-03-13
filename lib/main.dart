@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lemonade_controller/pages/home/home_page.dart';
-import 'package:lemonade_controller/pages/settings/settings_page.dart';
+import 'package:lemonade_controller/pages/main_page.dart';
 import 'package:lemonade_controller/services/settings_service.dart';
 import 'package:logger/logger.dart';
 
@@ -23,10 +22,7 @@ class LemonadeController extends StatelessWidget {
     return MaterialApp(
       title: 'Lemonade Controller',
       theme: ThemeData(colorScheme: .fromSeed(seedColor: Colors.blue)),
-      home: HomePage(title: 'Home'),
-      routes: {
-        '/settings': (context) => SettingsPage(settings: settings),
-      },
+      home: MainPage(settings: settings),
     );
   }
 }

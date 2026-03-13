@@ -10,133 +10,150 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  late Future<String> _baseUrlFuture;
-  late Future<bool> _autoRefreshEnabledFuture;
-  late Future<int> _autoRefreshIntervalFuture;
+  bool _loading = true;
+  String _baseUrl = '';
+  bool _autoRefreshEnabled = false;
+  int _autoRefreshInterval = 60;
 
   @override
   void initState() {
     super.initState();
-    _baseUrlFuture = widget.settings.getBaseUrl();
-    _autoRefreshEnabledFuture = widget.settings.getAutoRefreshEnabled();
-    _autoRefreshIntervalFuture = widget.settings.getAutoRefreshIntervalSeconds();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final results = await Future.wait([
+      widget.settings.getBaseUrl(),
+      widget.settings.getAutoRefreshEnabled(),
+      widget.settings.getAutoRefreshIntervalSeconds(),
+    ]);
+    setState(() {
+      _baseUrl = results[0] as String;
+      _autoRefreshEnabled = results[1] as bool;
+      _autoRefreshInterval = results[2] as int;
+      _loading = false;
+    });
+  }
+
+  Future<void> _editBaseUrl() async {
+    final controller = TextEditingController(text: _baseUrl);
+    final newUrl = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('API Base URL'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            hintText: 'http://192.168.1.7:8020/api/v1',
+            border: OutlineInputBorder(),
+          ),
+          onSubmitted: (value) => Navigator.pop(context, value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (newUrl != null && newUrl.isNotEmpty) {
+      await widget.settings.setBaseUrl(newUrl);
+      setState(() => _baseUrl = newUrl);
+    }
+  }
+
+  Future<void> _editAutoRefreshInterval() async {
+    final controller = TextEditingController(text: _autoRefreshInterval.toString());
+    final newInterval = await showDialog<int>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Refresh Interval'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            suffixText: 'seconds',
+            border: OutlineInputBorder(),
+          ),
+          keyboardType: TextInputType.number,
+          onSubmitted: (value) {
+            final parsed = int.tryParse(value);
+            if (parsed != null) Navigator.pop(context, parsed);
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final parsed = int.tryParse(controller.text);
+              if (parsed != null) Navigator.pop(context, parsed);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (newInterval != null) {
+      await widget.settings.setAutoRefreshIntervalSeconds(newInterval);
+      setState(() => _autoRefreshInterval = newInterval);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
-      body: ListView(
-        children: [
-          // Base URL Setting
-          FutureBuilder<String>(
-            future: _baseUrlFuture,
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) return const CircularProgressIndicator();
-              return ListTile(
-                title: const Text('API Base URL'),
-                subtitle: Text(snapshot.data!),
-                trailing: IconButton(
-                  icon: const Icon(Icons.edit),
-                  onPressed: () async {
-                    final newUrl = await showDialog<String>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Enter API Base URL'),
-                        content: TextField(
-                          decoration: const InputDecoration(hintText: 'Base URL'),
-                          controller: TextEditingController(text: snapshot.data),
-                          onSubmitted: (value) => Navigator.pop(context, value),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('Cancel'),
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, snapshot.data),
-                            child: const Text('Save'),
-                          ),
-                        ],
-                      ),
-                    );
-                    if (newUrl != null && newUrl.isNotEmpty) {
-                      await widget.settings.setBaseUrl(newUrl);
-                      setState(() {
-                        _baseUrlFuture = widget.settings.getBaseUrl();
-                      });
-                    }
-                  },
-                ),
-              );
-            },
-          ),
-          // Auto Refresh Enabled
-          FutureBuilder<bool>(
-            future: _autoRefreshEnabledFuture,
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) return const CircularProgressIndicator();
-              return SwitchListTile(
-                title: const Text('Auto Refresh Models'),
-                value: snapshot.data!,
-                onChanged: (value) async {
-                  await widget.settings.setAutoRefreshEnabled(value);
-                  setState(() {
-                    _autoRefreshEnabledFuture = widget.settings.getAutoRefreshEnabled();
-                  });
-                },
-              );
-            },
-          ),
-          // Auto Refresh Interval
-          FutureBuilder<int>(
-            future: _autoRefreshIntervalFuture,
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) return const CircularProgressIndicator();
-              return ListTile(
-                title: const Text('Auto Refresh Interval (seconds)'),
-                subtitle: Text(snapshot.data.toString()),
-                trailing: IconButton(
-                  icon: const Icon(Icons.edit),
-                  onPressed: () async {
-                    final newInterval = await showDialog<int?>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Enter Refresh Interval'),
-                        content: TextField(
-                          decoration: const InputDecoration(hintText: 'Seconds'),
-                          controller: TextEditingController(text: snapshot.data.toString()),
-                          keyboardType: TextInputType.number,
-                          onSubmitted: (value) {
-                            final parsed = int.tryParse(value);
-                            Navigator.pop(context, parsed);
-                          },
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('Cancel'),
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, snapshot.data),
-                            child: const Text('Save'),
-                          ),
-                        ],
-                      ),
-                    );
-                    if (newInterval != null) {
-                      await widget.settings.setAutoRefreshIntervalSeconds(newInterval);
-                      setState(() {
-                        _autoRefreshIntervalFuture = widget.settings.getAutoRefreshIntervalSeconds();
-                      });
-                    }
-                  },
-                ),
-              );
-            },
-          ),
-        ],
-      ),
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final theme = Theme.of(context);
+
+    return ListView(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Text('Server', style: theme.textTheme.titleSmall?.copyWith(
+            color: theme.colorScheme.primary,
+          )),
+        ),
+        ListTile(
+          leading: const Icon(Icons.dns_outlined),
+          title: const Text('API Base URL'),
+          subtitle: Text(_baseUrl),
+          onTap: _editBaseUrl,
+        ),
+        const Divider(),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Text('Auto Refresh', style: theme.textTheme.titleSmall?.copyWith(
+            color: theme.colorScheme.primary,
+          )),
+        ),
+        SwitchListTile(
+          secondary: const Icon(Icons.sync_outlined),
+          title: const Text('Auto Refresh Models'),
+          subtitle: Text(_autoRefreshEnabled ? 'Enabled' : 'Disabled'),
+          value: _autoRefreshEnabled,
+          onChanged: (value) async {
+            await widget.settings.setAutoRefreshEnabled(value);
+            setState(() => _autoRefreshEnabled = value);
+          },
+        ),
+        ListTile(
+          leading: const Icon(Icons.timer_outlined),
+          title: const Text('Refresh Interval'),
+          subtitle: Text('$_autoRefreshInterval seconds'),
+          enabled: _autoRefreshEnabled,
+          onTap: _autoRefreshEnabled ? _editAutoRefreshInterval : null,
+        ),
+      ],
     );
   }
 }

@@ -1,13 +1,19 @@
 import 'package:dio/dio.dart';
+import 'package:lemonade_controller/services/settings_service.dart';
 import 'package:lemonade_controller/utils/logger.dart';
 
 final logger = createLogger("api_client");
 
 class LemonadeApiClient {
-  static const String baseUrl = 'http://192.168.1.7:8020/api/v1';
   final Dio _dio = Dio();
+  final SettingsService _settingsService = SettingsService();
+  
+  Future<String> get baseUrl async {
+    return await _settingsService.getBaseUrl();
+  }
 
   Future<Map<String, dynamic>> getSystemInfo() async {
+    final baseUrl = await this.baseUrl;
     logger.i('Fetching system info from $baseUrl/system-info');
     try {
       final response = await _dio.get('$baseUrl/system-info');
@@ -24,6 +30,7 @@ class LemonadeApiClient {
   }
 
   Future<Map<String, dynamic>> getHealth() async {
+    final baseUrl = await this.baseUrl;
     logger.i('Fetching health status from $baseUrl/health');
     try {
       final response = await _dio.get('$baseUrl/health');
@@ -40,6 +47,7 @@ class LemonadeApiClient {
   }
 
   Future<List<dynamic>> getModelsList() async {
+    final baseUrl = await this.baseUrl;
     logger.i('Fetching models list from $baseUrl/models');
     try {
       final response = await _dio.get('$baseUrl/models');
