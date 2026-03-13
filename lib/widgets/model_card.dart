@@ -12,7 +12,32 @@ class ModelCard extends StatelessWidget {
     return Center(
       child: Card(
         child: ListTile(
-          title: Text(model.id, style: Theme.of(context).textTheme.titleMedium),
+          title: Row(
+            children: [
+              if (model.isUserModel)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    'user.',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onPrimary,
+                    ),
+                  ),
+                ),
+              const SizedBox(width: 4),
+              Text(
+                model.displayName,
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+            ],
+          ),
           subtitle: Text(
             'Checkpoint: ${model.checkpoint}\n'
             'Labels: ${model.labels.join(", ")}',
