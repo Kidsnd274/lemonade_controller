@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/pages/main_page.dart';
 import 'package:lemonade_controller/services/settings_service.dart';
 import 'package:logger/logger.dart';
@@ -9,7 +10,7 @@ void main() {
   // Set the desired log level
   Logger.level = Level.debug;
 
-  runApp(LemonadeController());
+  runApp(ProviderScope(child: LemonadeController()));
 }
 
 class LemonadeController extends StatelessWidget {
