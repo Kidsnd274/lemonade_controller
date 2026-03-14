@@ -13,29 +13,35 @@ class DrawerContent extends StatelessWidget {
     required this.onTap,
   });
 
-  static const List<Map<String, dynamic>> _items = [
-    {'icon': Icons.home, 'title': 'Home', 'index': 0},
-    {'icon': Icons.view_list, 'title': 'Models', 'index': 1},
-    {'icon': Icons.settings, 'title': 'Settings', 'index': 2},
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return ListView(
       padding: EdgeInsets.zero,
       children: [
-        const DrawerHeader(
-          decoration: BoxDecoration(color: Colors.blue),
+        DrawerHeader(
+          decoration: BoxDecoration(color: colorScheme.primaryContainer),
           child: Text(
-            'Lemonade Controller', // TODO: Colours should be based on theme
-            style: TextStyle(color: Colors.white, fontSize: 24),
+            'Lemonade Controller',
+            style: theme.textTheme.headlineSmall?.copyWith(
+              color: colorScheme.onPrimaryContainer,
+            ),
           ),
         ),
         for (var i = 0; i < items.length; i++)
           ListTile(
-            leading: Icon(items[i].icon),
+            leading: Icon(
+              items[i].icon,
+              color: selectedIndex == i
+                  ? colorScheme.primary
+                  : colorScheme.onSurfaceVariant,
+            ),
             title: Text(items[i].title),
             selected: selectedIndex == i,
+            selectedTileColor: colorScheme.primaryContainer.withOpacity(0.3),
+            selectedColor: colorScheme.primary,
             onTap: () => onTap(i),
           ),
       ],
