@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:lemonade_controller/pages/home/home_page.dart';
 import 'package:lemonade_controller/pages/models/models_page.dart';
+import 'package:lemonade_controller/pages/models/nav_item.dart';
 import 'package:lemonade_controller/pages/settings/settings_page.dart';
+import 'package:lemonade_controller/pages/widgets/drawer_content.dart';
 import 'package:lemonade_controller/services/settings_service.dart';
 
 class MainPage extends StatefulWidget {
@@ -15,63 +17,62 @@ class MainPage extends StatefulWidget {
 class _MainPageState extends State<MainPage> {
   int _selectedIndex = 0;
 
-  late final List<Widget> _pages;
-
-  final List<String> _pageTitles = ['Home', 'Models', 'Settings'];
+  late final List<NavItem> _navItems;
 
   @override
   void initState() {
     super.initState();
-    _pages = [
-      const HomePage(),
-      ModelsPage(),
-      SettingsPage(settings: widget.settings),
+    _navItems = [
+      NavItem(title: 'Home', icon: Icons.home, page: const HomePage()),
+      NavItem(title: 'Models', icon: Icons.view_list, page: ModelsPage()),
+      NavItem(title: 'Settings', icon: Icons.settings, page: SettingsPage(settings: widget.settings)),
     ];
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(  // TODO: This should be changable based on the page.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: Text(_pageTitles[_selectedIndex]),
-      ),
-      drawer: Drawer( // TODO: Drawer itself should be a widget?
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            const DrawerHeader(
-              decoration: BoxDecoration(color: Colors.blue),
-              child: Text('Lemonade Controller',
-                  style: TextStyle(color: Colors.white, fontSize: 24)),
-            ),
-            ListTile(
-              leading: const Icon(Icons.home),
-              title: const Text('Home'),
-              selected: _selectedIndex == 0,
-              onTap: () => _selectPage(0),
-            ),
-            ListTile(
-              leading: const Icon(Icons.view_list),
-              title: const Text('Models'),
-              selected: _selectedIndex == 1,
-              onTap: () => _selectPage(1),
-            ),
-            ListTile(
-              leading: const Icon(Icons.settings),
-              title: const Text('Settings'),
-              selected: _selectedIndex == 2,
-              onTap: () => _selectPage(2),
-            ),
-          ],
+    final width = MediaQuery.sizeOf(context).width;
+    final isMobile = width < 600;
+
+    final content = _navItems[_selectedIndex].page;
+    final drawerContent = DrawerContent(
+      items: _navItems,
+      selectedIndex: _selectedIndex,
+      onTap: _selectPage,
+    );
+
+    if (isMobile) {
+      return Scaffold(
+        appBar: AppBar(
+          backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+          title: Text(_navItems[_selectedIndex].title),
         ),
+        drawer: Drawer(child: drawerContent),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        title: Text(_navItems[_selectedIndex].title),
       ),
-      body: _pages[_selectedIndex],
+      body: Row(
+        children: [
+          SizedBox(
+            width: 280,
+            child: Material(elevation: 1, child: drawerContent),
+          ),
+          const VerticalDivider(width: 1),
+          Expanded(child: content),
+        ],
+      ),
     );
   }
 
   void _selectPage(int index) {
     setState(() => _selectedIndex = index);
-    Navigator.pop(context);
+    if (MediaQuery.sizeOf(context).width < 600) {
+      Navigator.pop(context); // only close the drawer overlay on mobile
+    }
   }
 }
