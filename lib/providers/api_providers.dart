@@ -16,21 +16,24 @@ final modelsProvider = FutureProvider<List<LemonadeModel>>((ref) async {
 final loadingModelsProvider =
     StateNotifierProvider<LoadingModelsNotifier, Set<String>>((ref) {
       final apiClient = ref.watch(apiClientProvider);
-      return LoadingModelsNotifier(apiClient);
+      return LoadingModelsNotifier(apiClient, ref);
     });
 
 class LoadingModelsNotifier extends StateNotifier<Set<String>> {
   final LemonadeApiClient _apiClient;
+  final Ref _ref;
 
-  LoadingModelsNotifier(this._apiClient) : super({});
-
-  bool isLoading(String modelId) => state.contains(modelId);
+  LoadingModelsNotifier(this._apiClient, this._ref) : super({});
 
   Future<bool> loadModel(String modelId) async {
     state = {...state, modelId};
     try {
       final options = LemonadeLoadOptionsModel(modelName: modelId);
-      return await _apiClient.loadModel(options);
+      final result = await _apiClient.loadModel(options);
+      if (result) {
+        await _ref.read(loadedModelsProvider.notifier).updateState();
+      }
+      return result;
     } finally {
       state = {...state}..remove(modelId);
     }
@@ -52,9 +55,6 @@ class LoadedModelsNotifier extends StateNotifier<Set<LoadedModel>> {
     // _startPeriodicRefresh();
   }
 
-  bool isLoaded(String modelId) =>
-      state.any((model) => model.modelName == modelId);
-
   Future updateState() async {
     final loadedList = await _apiClient.getLoadedModels();
     state = loadedList.toSet();
@@ -70,3 +70,16 @@ class LoadedModelsNotifier extends StateNotifier<Set<LoadedModel>> {
     super.dispose();
   }
 }
+
+final isModelLoadingProvider = Provider.family<bool, String>((ref, modelId) {
+  return ref.watch(
+    loadingModelsProvider.select((state) => state.contains(modelId)),
+  );
+});
+
+final isModelLoadedProvider = Provider.family<bool, String>((ref, modelId) {
+  return ref.watch(
+    loadedModelsProvider
+        .select((state) => state.any((m) => m.modelName == modelId)),
+  );
+});

@@ -10,9 +10,8 @@ class ModelCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isLoading = ref.watch(
-      loadingModelsProvider.select((state) => state.contains(model.id)),
-    );
+    final isLoading = ref.watch(isModelLoadingProvider(model.id));
+    final isLoaded = ref.watch(isModelLoadedProvider(model.id));
     final theme = Theme.of(context);
 
     return Card(
@@ -58,21 +57,23 @@ class ModelCard extends ConsumerWidget {
           'Checkpoint: ${model.checkpoint}\n'
           'Labels: ${model.labels.join(", ")}',
         ),
-        trailing: IconButton(
-          onPressed: isLoading
-              ? null
-              : () => ref
-                    .read(loadingModelsProvider.notifier)
-                    .loadModel(model.id),
-          icon: isLoading
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.download),
-          tooltip: isLoading ? 'Loading...' : 'Load model',
-        ),
+        trailing: isLoaded
+            ? Icon(Icons.check_circle, color: Colors.green)
+            : IconButton(
+                onPressed: isLoading
+                    ? null
+                    : () => ref
+                          .read(loadingModelsProvider.notifier)
+                          .loadModel(model.id),
+                icon: isLoading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.play_arrow),
+                tooltip: isLoading ? 'Loading...' : 'Load model',
+              ),
       ),
     );
   }
