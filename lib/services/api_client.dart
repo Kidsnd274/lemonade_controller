@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:lemonade_controller/models/lemonade_load_options.dart';
 import 'package:lemonade_controller/services/settings_service.dart';
 import 'package:lemonade_controller/utils/logger.dart';
 
@@ -7,7 +8,7 @@ final logger = createLogger("api_client");
 class LemonadeApiClient {
   final Dio _dio = Dio();
   final SettingsService _settingsService = SettingsService();
-  
+
   Future<String> get baseUrl async {
     return await _settingsService.getBaseUrl();
   }
@@ -62,6 +63,18 @@ class LemonadeApiClient {
         stackTrace: stackTrace,
       );
       throw Exception('Failed to load models list: $e');
+    }
+  }
+
+  Future<bool> loadModel(LemonadeLoadOptionsModel options) async {
+    final baseUrl = await this.baseUrl;
+    logger.i('Sending command to load ${options.modelName}');
+    try {
+      final response = await _dio.post('$baseUrl/load', data: options.toJson());
+      return response.statusCode == 200;
+    } on DioException catch (e) {
+      logger.e('Failed to load model', error: e, stackTrace: e.stackTrace);
+      return false;
     }
   }
 }
