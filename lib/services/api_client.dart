@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:lemonade_controller/models/lemonade_load_options.dart';
+import 'package:lemonade_controller/models/loaded_model.dart';
 import 'package:lemonade_controller/services/settings_service.dart';
 import 'package:lemonade_controller/utils/logger.dart';
 
@@ -76,5 +77,11 @@ class LemonadeApiClient {
       logger.e('Failed to load model', error: e, stackTrace: e.stackTrace);
       return false;
     }
+  }
+
+  Future<List<LoadedModel>> getLoadedModels() async {
+    final health = await getHealth();
+    final models = health['all_models_loaded'] as List;
+    return models.map((json) => LoadedModel.fromJson(json)).toList();
   }
 }
