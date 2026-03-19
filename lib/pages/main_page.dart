@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/pages/home/home_page.dart';
 import 'package:lemonade_controller/pages/models_list/models_page.dart';
 import 'package:lemonade_controller/pages/models_list/nav_item.dart';
 import 'package:lemonade_controller/pages/settings/settings_page.dart';
 import 'package:lemonade_controller/pages/widgets/drawer_content.dart';
+import 'package:lemonade_controller/providers/providers.dart';
 import 'package:lemonade_controller/services/settings_service.dart';
 
 enum _ScreenSize { compact, medium, expanded }
@@ -134,6 +136,18 @@ class _MainPageState extends State<MainPage> {
     return AppBar(
       backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       title: Text(_navItems[_selectedIndex].title),
+      actions: [
+        Consumer(
+          builder: (context, ref, child) {
+            final refreshAll = ref.watch(refreshAllProvider);
+            return IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: () => refreshAll(),
+              tooltip: 'Refresh',
+            );
+          },
+        ),
+      ],
     );
   }
 
