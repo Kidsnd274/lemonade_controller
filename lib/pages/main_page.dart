@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lemonade_controller/pages/home/home_page.dart';
-import 'package:lemonade_controller/pages/models/models_page.dart';
-import 'package:lemonade_controller/pages/models/nav_item.dart';
+import 'package:lemonade_controller/pages/models_list/models_page.dart';
+import 'package:lemonade_controller/pages/models_list/nav_item.dart';
 import 'package:lemonade_controller/pages/settings/settings_page.dart';
 import 'package:lemonade_controller/pages/widgets/drawer_content.dart';
 import 'package:lemonade_controller/services/settings_service.dart';

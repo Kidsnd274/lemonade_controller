@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lemonade_controller/pages/models/nav_item.dart';
+import 'package:lemonade_controller/pages/models_list/nav_item.dart';
 
 class DrawerContent extends StatelessWidget {
   final List<NavItem> items;
