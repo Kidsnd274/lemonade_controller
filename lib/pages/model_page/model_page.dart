@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/models/lemonade_model.dart';
 import 'package:lemonade_controller/providers/api_providers.dart';
+import 'package:lemonade_controller/utils/quantization_color.dart';
 
 /// Approximate bits-per-weight for common GGUF quantization formats.
 const _quantizationBitsPerWeight = <String, double>{
@@ -131,8 +132,10 @@ class _Header extends StatelessWidget {
                   if (model.isUserModel)
                     _Badge(
                       label: model.quantization,
-                      backgroundColor: theme.colorScheme.secondary,
-                      foregroundColor: theme.colorScheme.onSecondary,
+                      backgroundColor:
+                          quantizationColor(model.quantizationLevel),
+                      foregroundColor:
+                          quantizationForegroundColor(model.quantizationLevel),
                     ),
                 ],
               ),
@@ -259,31 +262,42 @@ class _ActionButtons extends ConsumerWidget {
       runSpacing: 12,
       children: [
         // Load / Unload
-        FilledButton.icon(
-          onPressed: isLoading
-              ? null
-              : isLoaded
-                  ? null // unload not yet implemented
-                  : () =>
-                      ref.read(loadingModelsProvider.notifier).loadModel(model.id),
-          icon: isLoading
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                )
-              : Icon(isLoaded ? Icons.stop : Icons.play_arrow),
-          label: Text(
-            isLoading
-                ? 'Loading…'
-                : isLoaded
-                    ? 'Unload'
-                    : 'Load',
-          ),
-        ),
+        isLoaded
+            ? FilledButton.icon(
+                onPressed: isLoading
+                    ? null
+                    : () => _confirmUnload(context, ref),
+                style: FilledButton.styleFrom(
+                  backgroundColor: theme.colorScheme.error,
+                ),
+                icon: isLoading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.stop),
+                label: Text(isLoading ? 'Unloading…' : 'Unload'),
+              )
+            : FilledButton.icon(
+                onPressed: isLoading
+                    ? null
+                    : () => _confirmLoad(context, ref),
+                icon: isLoading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.play_arrow),
+                label: Text(isLoading ? 'Loading…' : 'Load'),
+              ),
 
         // Configure
         OutlinedButton.icon(
@@ -311,6 +325,56 @@ class _ActionButtons extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+
+  void _confirmLoad(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Load Model'),
+        content: Text('Are you sure you want to load "${model.displayName}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              ref.read(loadingModelsProvider.notifier).loadModel(model.id);
+            },
+            child: const Text('Load'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmUnload(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Unload Model'),
+        content:
+            Text('Are you sure you want to unload "${model.displayName}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              ref.read(loadingModelsProvider.notifier).unloadModel(model.id);
+            },
+            child: const Text('Unload'),
+          ),
+        ],
+      ),
     );
   }
 

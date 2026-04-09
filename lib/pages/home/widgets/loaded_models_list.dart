@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/models/lemonade_model.dart';
 import 'package:lemonade_controller/models/loaded_model.dart';
-import 'package:lemonade_controller/pages/home/widgets/loaded_model_card.dart';
+import 'package:lemonade_controller/pages/models_list/widgets/model_card.dart';
 import 'package:lemonade_controller/providers/api_providers.dart';
 
 class LoadedModelsList extends ConsumerWidget {
@@ -21,7 +21,7 @@ class LoadedModelsList extends ConsumerWidget {
           LemonadeModel currModel = models.firstWhere(
             (m) => m.id == currLoadedModel.modelName,
           );
-          return LoadedModelCard(model: currModel);
+          return ModelCard(model: currModel);
         },
       ),
       error: (err, _) => Center(child: Text('Error $err')),
