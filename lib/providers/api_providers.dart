@@ -1,10 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'dart:async';
+import 'package:lemonade_controller/models/health_info.dart';
 import 'package:lemonade_controller/models/lemonade_load_options.dart';
 import 'package:lemonade_controller/models/lemonade_model.dart';
 import 'package:lemonade_controller/models/lemonade_unload_options.dart';
 import 'package:lemonade_controller/models/loaded_model.dart';
+import 'package:lemonade_controller/models/system_info.dart';
 import 'package:lemonade_controller/providers/service_providers.dart';
 import 'package:lemonade_controller/services/api_client.dart';
 
@@ -97,4 +99,16 @@ final isModelLoadedProvider = Provider.family<bool, String>((ref, modelId) {
     loadedModelsProvider
         .select((state) => state.any((m) => m.modelName == modelId)),
   );
+});
+
+final systemInfoProvider = FutureProvider<SystemInfo>((ref) async {
+  final api = ref.watch(apiClientProvider);
+  final json = await api.getSystemInfo();
+  return SystemInfo.fromJson(json);
+});
+
+final healthInfoProvider = FutureProvider<HealthInfo>((ref) async {
+  final api = ref.watch(apiClientProvider);
+  final json = await api.getHealth();
+  return HealthInfo.fromJson(json);
 });

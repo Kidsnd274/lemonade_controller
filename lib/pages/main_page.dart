@@ -2,18 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/pages/home/home_page.dart';
 import 'package:lemonade_controller/pages/models_list/models_page.dart';
-import 'package:lemonade_controller/pages/models_list/nav_item.dart';
+import 'package:lemonade_controller/pages/widgets/nav_item.dart';
 import 'package:lemonade_controller/pages/settings/settings_page.dart';
 import 'package:lemonade_controller/pages/widgets/drawer_content.dart';
 import 'package:lemonade_controller/providers/providers.dart';
 
-enum _ScreenSize { compact, medium, expanded }
+enum ScreenSize { compact, medium, expanded }
 
-_ScreenSize _screenSizeOf(BuildContext context) {
+ScreenSize screenSizeOf(BuildContext context) {
   final width = MediaQuery.sizeOf(context).width;
-  if (width < 600) return _ScreenSize.compact;
-  if (width < 1024) return _ScreenSize.medium;
-  return _ScreenSize.expanded;
+  if (width < 600) return ScreenSize.compact;
+  if (width < 1024) return ScreenSize.medium;
+  return ScreenSize.expanded;
 }
 
 class MainPage extends StatefulWidget {
@@ -27,11 +27,22 @@ class _MainPageState extends State<MainPage> {
   int _selectedIndex = 0;
 
   static final List<NavItem> _navItems = [
-    NavItem(title: 'Home', icon: Icons.home, page: const HomePage()),
-    NavItem(title: 'Models', icon: Icons.view_list, page: ModelsPage()),
+    NavItem(
+      title: 'Home',
+      icon: Icons.home_outlined,
+      selectedIcon: Icons.home,
+      page: const HomePage(),
+    ),
+    NavItem(
+      title: 'Models',
+      icon: Icons.view_list_outlined,
+      selectedIcon: Icons.view_list,
+      page: ModelsPage(),
+    ),
     NavItem(
       title: 'Settings',
-      icon: Icons.settings,
+      icon: Icons.settings_outlined,
+      selectedIcon: Icons.settings,
       page: const SettingsPage(),
     ),
   ];
@@ -45,16 +56,16 @@ class _MainPageState extends State<MainPage> {
 
   @override
   Widget build(BuildContext context) {
-    final screenSize = _screenSizeOf(context);
+    final screenSize = screenSizeOf(context);
     final content = KeyedSubtree(
       key: _pageKeys[_selectedIndex],
       child: _navItems[_selectedIndex].page,
     );
 
     return switch (screenSize) {
-      _ScreenSize.compact => _buildMobileLayout(content),
-      _ScreenSize.medium => _buildTabletLayout(content),
-      _ScreenSize.expanded => _buildDesktopLayout(content),
+      ScreenSize.compact => _buildMobileLayout(content),
+      ScreenSize.medium => _buildTabletLayout(content),
+      ScreenSize.expanded => _buildDesktopLayout(content),
     };
   }
 
@@ -85,11 +96,17 @@ class _MainPageState extends State<MainPage> {
             selectedIndex: _selectedIndex,
             labelType: NavigationRailLabelType.all,
             onDestinationSelected: _selectPage,
+            indicatorColor: theme.colorScheme.secondaryContainer,
+            backgroundColor: theme.colorScheme.surface,
+            minWidth: 72,
+            groupAlignment: -0.85,
             destinations: [
               for (final item in _navItems)
                 NavigationRailDestination(
                   icon: Icon(item.icon),
+                  selectedIcon: Icon(item.selectedIcon),
                   label: Text(item.title),
+                  padding: const EdgeInsets.symmetric(vertical: 4),
                 ),
             ],
           ),
@@ -130,19 +147,26 @@ class _MainPageState extends State<MainPage> {
   }
 
   AppBar _buildAppBar() {
+    final theme = Theme.of(context);
     return AppBar(
-      backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-      title: Text(_navItems[_selectedIndex].title),
+      title: Text(
+        _navItems[_selectedIndex].title,
+        style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
+      ),
+      scrolledUnderElevation: 1,
       actions: [
-        Consumer(
-          builder: (context, ref, child) {
-            final refreshAll = ref.watch(refreshAllProvider);
-            return IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: () => refreshAll(),
-              tooltip: 'Refresh',
-            );
-          },
+        Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: Consumer(
+            builder: (context, ref, child) {
+              final refreshAll = ref.watch(refreshAllProvider);
+              return IconButton.filledTonal(
+                icon: const Icon(Icons.refresh_rounded, size: 20),
+                onPressed: () => refreshAll(),
+                tooltip: 'Refresh all',
+              );
+            },
+          ),
         ),
       ],
     );

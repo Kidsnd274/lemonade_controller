@@ -1,19 +1,73 @@
 import 'package:flutter/material.dart';
-import 'package:lemonade_controller/pages/home/widgets/loaded_models_list.dart';
+import 'package:lemonade_controller/pages/home/widgets/loaded_models_card.dart';
+import 'package:lemonade_controller/pages/home/widgets/recipes_card.dart';
+import 'package:lemonade_controller/pages/home/widgets/server_status_card.dart';
+import 'package:lemonade_controller/pages/home/widgets/system_specs_card.dart';
+import 'package:lemonade_controller/pages/main_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        const Text(
-          'Loaded Models',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-        ),
-        Expanded(child: LoadedModelsList()),
+    final size = screenSizeOf(context);
+    final isCompact = size == ScreenSize.compact;
+
+    if (isCompact) {
+      return _MobileLayout();
+    }
+    return _WideLayout();
+  }
+}
+
+class _MobileLayout extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(12),
+      children: const [
+        ServerStatusCard(),
+        SizedBox(height: 8),
+        LoadedModelsCard(),
+        SizedBox(height: 8),
+        SystemSpecsCard(),
+        SizedBox(height: 8),
+        RecipesCard(),
+        SizedBox(height: 16),
       ],
+    );
+  }
+}
+
+class _WideLayout extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1200),
+          child: Column(
+            children: [
+              const ServerStatusCard(),
+              const SizedBox(height: 12),
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: const [
+                    Expanded(child: LoadedModelsCard()),
+                    SizedBox(width: 12),
+                    Expanded(child: SystemSpecsCard()),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              const RecipesCard(),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
