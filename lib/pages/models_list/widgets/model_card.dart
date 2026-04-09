@@ -8,6 +8,50 @@ class ModelCard extends ConsumerWidget {
 
   const ModelCard({super.key, required this.model});
 
+  Future<bool?> _showLoadConfirmation(BuildContext context) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Load Model'),
+        content: Text('Are you sure you want to load "${model.displayName}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Load'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<bool?> _showUnloadConfirmation(BuildContext context) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Unload Model'),
+        content:
+            Text('Are you sure you want to unload "${model.displayName}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Unload'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isLoading = ref.watch(isModelLoadingProvider(model.id));
@@ -20,7 +64,8 @@ class ModelCard extends ConsumerWidget {
           children: [
             if (model.isUserModel) ...[
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.primary,
                   borderRadius: BorderRadius.circular(4),
@@ -34,11 +79,18 @@ class ModelCard extends ConsumerWidget {
               ),
               const SizedBox(width: 4),
             ],
-            Text(model.displayName, style: theme.textTheme.labelLarge),
+            Flexible(
+              child: Text(
+                model.displayName,
+                style: theme.textTheme.labelLarge,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
             if (model.isUserModel) ...[
               const SizedBox(width: 4),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.secondary,
                   borderRadius: BorderRadius.circular(4),
@@ -57,23 +109,40 @@ class ModelCard extends ConsumerWidget {
           'Checkpoint: ${model.checkpoint}\n'
           'Labels: ${model.labels.join(", ")}',
         ),
-        trailing: isLoaded
-            ? Icon(Icons.check_circle, color: Colors.green)
-            : IconButton(
-                onPressed: isLoading
-                    ? null
-                    : () => ref
-                          .read(loadingModelsProvider.notifier)
-                          .loadModel(model.id),
-                icon: isLoading
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.play_arrow),
-                tooltip: isLoading ? 'Loading...' : 'Load model',
-              ),
+        trailing: isLoading
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : isLoaded
+                ? IconButton(
+                    onPressed: () async {
+                      final confirmed =
+                          await _showUnloadConfirmation(context);
+                      if (confirmed == true && context.mounted) {
+                        ref
+                            .read(loadingModelsProvider.notifier)
+                            .unloadModel(model.id);
+                      }
+                    },
+                    icon: const Icon(Icons.stop_circle_outlined),
+                    tooltip: 'Unload model',
+                    color: Colors.green,
+                  )
+                : IconButton(
+                    onPressed: () async {
+                      final confirmed =
+                          await _showLoadConfirmation(context);
+                      if (confirmed == true && context.mounted) {
+                        ref
+                            .read(loadingModelsProvider.notifier)
+                            .loadModel(model.id);
+                      }
+                    },
+                    icon: const Icon(Icons.play_arrow),
+                    tooltip: 'Load model',
+                  ),
       ),
     );
   }
