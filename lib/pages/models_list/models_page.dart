@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/models/lemonade_model.dart';
 import 'package:lemonade_controller/providers/api_providers.dart';
 import 'package:lemonade_controller/pages/models_list/widgets/model_card.dart';
+import 'package:lemonade_controller/services/settings_service.dart';
 import 'package:lemonade_controller/utils/quantization_color.dart';
 
 enum UserModelFilter { all, userOnly, nonUserOnly }
@@ -19,6 +20,7 @@ class _ModelsPageState extends ConsumerState<ModelsPage> {
   String _searchQuery = '';
   UserModelFilter _userFilter = UserModelFilter.all;
   String? _selectedQuantization;
+  bool _favouritesExpanded = true;
 
   @override
   void dispose() {
@@ -83,9 +85,101 @@ class _ModelsPageState extends ConsumerState<ModelsPage> {
     return filtered;
   }
 
+  Widget _buildModelsList(
+    List<LemonadeModel> filtered,
+    Set<String> favouriteIds,
+    ThemeData theme,
+  ) {
+    final favouriteModels =
+        filtered.where((m) => favouriteIds.contains(m.id)).toList();
+
+    const listPadding = EdgeInsets.symmetric(horizontal: 16);
+
+    return CustomScrollView(
+      slivers: [
+        if (favouriteModels.isNotEmpty) ...[
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.only(left: 16, right: 8, top: 4),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.favorite,
+                    size: 16,
+                    color: theme.colorScheme.error,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Favourites',
+                    style: theme.textTheme.titleSmall,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '(${favouriteModels.length})',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: AnimatedRotation(
+                      turns: _favouritesExpanded ? 0.0 : -0.25,
+                      duration: const Duration(milliseconds: 200),
+                      child: const Icon(Icons.expand_more, size: 20),
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => setState(
+                      () => _favouritesExpanded = !_favouritesExpanded,
+                    ),
+                    tooltip: _favouritesExpanded
+                        ? 'Collapse favourites'
+                        : 'Expand favourites',
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_favouritesExpanded)
+            SliverPadding(
+              padding: listPadding,
+              sliver: SliverList.builder(
+                itemCount: favouriteModels.length,
+                itemBuilder: (_, i) =>
+                    _buildModelCard(favouriteModels[i], favouriteIds, ref),
+              ),
+            ),
+          const SliverToBoxAdapter(child: Divider(indent: 16, endIndent: 16)),
+        ],
+        SliverPadding(
+          padding: listPadding.copyWith(bottom: 16),
+          sliver: SliverList.builder(
+            itemCount: filtered.length,
+            itemBuilder: (_, i) =>
+                _buildModelCard(filtered[i], favouriteIds, ref),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildModelCard(
+    LemonadeModel model,
+    Set<String> favouriteIds,
+    WidgetRef ref,
+  ) {
+    return ModelCard(
+      model: model,
+      isFavourite: favouriteIds.contains(model.id),
+      onToggleFavourite: () =>
+          ref.read(settingsProvider.notifier).toggleFavourite(model.id),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final modelsAsync = ref.watch(modelsProvider);
+    final favouriteIds =
+        ref.watch(settingsProvider).value?.favouriteModelIds ?? {};
     final theme = Theme.of(context);
 
     return Column(
@@ -267,12 +361,7 @@ class _ModelsPageState extends ConsumerState<ModelsPage> {
                               ],
                             ),
                           )
-                        : ListView.builder(
-                            padding: const EdgeInsets.only(bottom: 16, left: 16, right: 16),
-                            itemCount: filtered.length,
-                            itemBuilder: (ctx, i) =>
-                                ModelCard(model: filtered[i]),
-                          ),
+                        : _buildModelsList(filtered, favouriteIds, theme),
                   ),
                 ],
               ),
