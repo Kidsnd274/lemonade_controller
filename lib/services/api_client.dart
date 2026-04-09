@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:lemonade_controller/models/lemonade_load_options.dart';
+import 'package:lemonade_controller/models/lemonade_unload_options.dart';
 import 'package:lemonade_controller/models/loaded_model.dart';
 import 'package:lemonade_controller/services/settings_service.dart';
 import 'package:lemonade_controller/utils/logger.dart';
@@ -75,6 +76,21 @@ class LemonadeApiClient {
       return response.statusCode == 200;
     } on DioException catch (e) {
       logger.e('Failed to load model', error: e, stackTrace: e.stackTrace);
+      return false;
+    }
+  }
+
+  Future<bool> unloadModel(LemonadeUnloadOptionsModel options) async {
+    final baseUrl = await this.baseUrl;
+    logger.i('Sending command to unload ${options.modelName}');
+    try {
+      final response = await _dio.post(
+        '$baseUrl/unload',
+        data: options.toJson(),
+      );
+      return response.statusCode == 200;
+    } on DioException catch (e) {
+      logger.e('Failed to unload model', error: e, stackTrace: e.stackTrace);
       return false;
     }
   }

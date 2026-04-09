@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'dart:async';
 import 'package:lemonade_controller/models/lemonade_load_options.dart';
 import 'package:lemonade_controller/models/lemonade_model.dart';
+import 'package:lemonade_controller/models/lemonade_unload_options.dart';
 import 'package:lemonade_controller/models/loaded_model.dart';
 import 'package:lemonade_controller/providers/service_providers.dart';
 import 'package:lemonade_controller/services/api_client.dart';
@@ -30,6 +31,20 @@ class LoadingModelsNotifier extends StateNotifier<Set<String>> {
     try {
       final options = LemonadeLoadOptionsModel(modelName: modelId);
       final result = await _apiClient.loadModel(options);
+      if (result) {
+        await _ref.read(loadedModelsProvider.notifier).updateState();
+      }
+      return result;
+    } finally {
+      state = {...state}..remove(modelId);
+    }
+  }
+
+  Future<bool> unloadModel(String modelId) async {
+    state = {...state, modelId};
+    try {
+      final options = LemonadeUnloadOptionsModel(modelName: modelId);
+      final result = await _apiClient.unloadModel(options);
       if (result) {
         await _ref.read(loadedModelsProvider.notifier).updateState();
       }

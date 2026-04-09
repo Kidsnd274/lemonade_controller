@@ -66,11 +66,20 @@ class LemonadeModel {
     );
   }
 
+  static final _qLevelPattern = RegExp(r'Q(\d)');
+
   // Derived properties
   String get displayName => id.replaceFirst('user.', '');
   String get quantization =>
       checkpoint.split(":").length > 1 ? checkpoint.split(':').last : 'Unknown';
   bool get isUserModel => id.startsWith('user.');
+
+  /// Extracts the Q-level (1–8) from quantization strings like "Q6_K" or "UD-Q5_L_XL".
+  int? get quantizationLevel {
+    final match = _qLevelPattern.firstMatch(quantization);
+    if (match == null) return null;
+    return int.parse(match.group(1)!);
+  }
 
   @override
   String toString() => 'LemonadeModel(id: $id, checkpoint: $checkpoint)';
