@@ -75,6 +75,11 @@ class _ModelsPageState extends ConsumerState<ModelsPage> {
           .toList();
     }
 
+    filtered.sort((a, b) {
+      if (a.isUserModel == b.isUserModel) return a.id.compareTo(b.id);
+      return a.isUserModel ? -1 : 1;
+    });
+
     return filtered;
   }
 
@@ -118,8 +123,7 @@ class _ModelsPageState extends ConsumerState<ModelsPage> {
             return Expanded(
               child: Column(
                 children: [
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
+                  Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 8,
@@ -138,12 +142,14 @@ class _ModelsPageState extends ConsumerState<ModelsPage> {
                           avatar: _userFilter == UserModelFilter.userOnly
                               ? null
                               : Icon(
-                                  Icons.person,
-                                  size: 16,
+                                  Icons.person_outline,
+                                  size: 18,
                                   color: theme.colorScheme.primary,
                                 ),
                           label: const Text('user.'),
                           selected: _userFilter == UserModelFilter.userOnly,
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
                           onSelected: (_) => setState(
                             () => _userFilter = UserModelFilter.userOnly,
                           ),
@@ -164,43 +170,48 @@ class _ModelsPageState extends ConsumerState<ModelsPage> {
                             color: theme.dividerColor,
                           ),
                           const SizedBox(width: 12),
-                          DropdownButtonHideUnderline(
-                            child: DropdownButton<String?>(
-                              value: _selectedQuantization,
-                              hint: const Text('Quantization'),
-                              isDense: true,
-                              borderRadius: BorderRadius.circular(12),
-                              items: [
-                                const DropdownMenuItem<String?>(
-                                  value: null,
-                                  child: Text('All quants'),
-                                ),
-                                ...quantizations.map(
-                                  (q) {
-                                    final level = _parseQLevel(q);
-                                    return DropdownMenuItem<String?>(
-                                      value: q,
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Container(
-                                            width: 12,
-                                            height: 12,
-                                            decoration: BoxDecoration(
-                                              color: quantizationColor(level),
-                                              shape: BoxShape.circle,
+                          Expanded(
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String?>(
+                                value: _selectedQuantization,
+                                hint: const Text('Quantization'),
+                                isDense: true,
+                                isExpanded: true,
+                                padding: EdgeInsets.symmetric(horizontal: 10,),
+                                borderRadius: BorderRadius.circular(12),
+                                items: [
+                                  const DropdownMenuItem<String?>(
+                                    value: null,
+                                    child: Text('All quants'),
+                                  ),
+                                  ...quantizations.map(
+                                    (q) {
+                                      final level = _parseQLevel(q);
+                                      return DropdownMenuItem<String?>(
+                                        value: q,
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Container(
+                                              width: 12,
+                                              height: 12,
+                                              decoration: BoxDecoration(
+                                                color:
+                                                    quantizationColor(level),
+                                                shape: BoxShape.circle,
+                                              ),
                                             ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(q),
-                                        ],
-                                      ),
-                                    );
-                                  },
+                                            const SizedBox(width: 8),
+                                            Text(q),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
+                                onChanged: (value) => setState(
+                                  () => _selectedQuantization = value,
                                 ),
-                              ],
-                              onChanged: (value) => setState(
-                                () => _selectedQuantization = value,
                               ),
                             ),
                           ),
@@ -257,7 +268,7 @@ class _ModelsPageState extends ConsumerState<ModelsPage> {
                             ),
                           )
                         : ListView.builder(
-                            padding: const EdgeInsets.only(bottom: 16),
+                            padding: const EdgeInsets.only(bottom: 16, left: 16, right: 16),
                             itemCount: filtered.length,
                             itemBuilder: (ctx, i) =>
                                 ModelCard(model: filtered[i]),

@@ -40,6 +40,7 @@ class LoadedModelCard extends ConsumerWidget {
 
     return Card(
       child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8),
         title: Row(
           children: [
             if (model.isUserModel) ...[
@@ -86,15 +87,33 @@ class LoadedModelCard extends ConsumerWidget {
             ],
           ],
         ),
-        subtitle: Text(
-          'Checkpoint: ${model.checkpoint}\n'
-          'Labels: ${model.labels.join(", ")}',
+        subtitle: Text.rich(
+          TextSpan(
+            children: [
+              const TextSpan(
+                text: 'Checkpoint: ',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              TextSpan(text: '${model.checkpoint}\n'),
+              const TextSpan(
+                text: 'Labels: ',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              TextSpan(text: model.labels.join(', ')),
+            ],
+          ),
         ),
         trailing: isLoading
             ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
+                width: 48,
+                height: 48,
+                child: Center(
+                  child: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
               )
             : IconButton(
                 onPressed: () async {
@@ -107,7 +126,7 @@ class LoadedModelCard extends ConsumerWidget {
                 },
                 icon: const Icon(Icons.stop_circle_outlined),
                 tooltip: 'Unload model',
-                color: Colors.green,
+                color: theme.colorScheme.error,
               ),
       ),
     );
