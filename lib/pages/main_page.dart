@@ -6,20 +6,18 @@ import 'package:lemonade_controller/pages/models_list/nav_item.dart';
 import 'package:lemonade_controller/pages/settings/settings_page.dart';
 import 'package:lemonade_controller/pages/widgets/drawer_content.dart';
 import 'package:lemonade_controller/providers/providers.dart';
-import 'package:lemonade_controller/services/settings_service.dart';
 
-enum _ScreenSize { compact, medium, expanded }
+enum ScreenSize { compact, medium, expanded }
 
-_ScreenSize _screenSizeOf(BuildContext context) {
+ScreenSize screenSizeOf(BuildContext context) {
   final width = MediaQuery.sizeOf(context).width;
-  if (width < 600) return _ScreenSize.compact;
-  if (width < 1024) return _ScreenSize.medium;
-  return _ScreenSize.expanded;
+  if (width < 600) return ScreenSize.compact;
+  if (width < 1024) return ScreenSize.medium;
+  return ScreenSize.expanded;
 }
 
 class MainPage extends StatefulWidget {
-  final SettingsService settings;
-  const MainPage({super.key, required this.settings});
+  const MainPage({super.key});
 
   @override
   State<MainPage> createState() => _MainPageState();
@@ -28,36 +26,35 @@ class MainPage extends StatefulWidget {
 class _MainPageState extends State<MainPage> {
   int _selectedIndex = 0;
 
-  late final List<NavItem> _navItems;
+  static final List<NavItem> _navItems = [
+    NavItem(title: 'Home', icon: Icons.home, page: const HomePage()),
+    NavItem(title: 'Models', icon: Icons.view_list, page: ModelsPage()),
+    NavItem(
+      title: 'Settings',
+      icon: Icons.settings,
+      page: const SettingsPage(),
+    ),
+  ];
   late final List<GlobalKey> _pageKeys;
 
   @override
   void initState() {
     super.initState();
-    _navItems = [
-      NavItem(title: 'Home', icon: Icons.home, page: const HomePage()),
-      NavItem(title: 'Models', icon: Icons.view_list, page: ModelsPage()),
-      NavItem(
-        title: 'Settings',
-        icon: Icons.settings,
-        page: SettingsPage(settings: widget.settings),
-      ),
-    ];
     _pageKeys = List.generate(_navItems.length, (_) => GlobalKey());
   }
 
   @override
   Widget build(BuildContext context) {
-    final screenSize = _screenSizeOf(context);
+    final screenSize = screenSizeOf(context);
     final content = KeyedSubtree(
       key: _pageKeys[_selectedIndex],
       child: _navItems[_selectedIndex].page,
     );
 
     return switch (screenSize) {
-      _ScreenSize.compact => _buildMobileLayout(content),
-      _ScreenSize.medium => _buildTabletLayout(content),
-      _ScreenSize.expanded => _buildDesktopLayout(content),
+      ScreenSize.compact => _buildMobileLayout(content),
+      ScreenSize.medium => _buildTabletLayout(content),
+      ScreenSize.expanded => _buildDesktopLayout(content),
     };
   }
 

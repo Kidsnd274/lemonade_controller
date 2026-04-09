@@ -5,5 +5,7 @@ final refreshAllProvider = Provider((ref) {
   return () async {
     await Future.wait([ref.read(loadedModelsProvider.notifier).updateState()]);
     ref.invalidate(modelsProvider);
+    ref.invalidate(systemInfoProvider);
+    ref.invalidate(healthInfoProvider);
   };
 });

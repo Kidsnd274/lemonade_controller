@@ -1,44 +1,132 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lemonade_controller/providers/service_providers.dart';
 import 'package:lemonade_controller/services/settings_service.dart';
 
-class SettingsPage extends ConsumerStatefulWidget {
-  final SettingsService settings;
-  const SettingsPage({super.key, required this.settings});
+class SettingsPage extends ConsumerWidget {
+  const SettingsPage({super.key});
 
   @override
-  ConsumerState<SettingsPage> createState() => _SettingsPageState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settingsAsync = ref.watch(settingsProvider);
+
+    return settingsAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, st) => Center(child: Text('Error loading settings: $e')),
+      data: (settings) => _SettingsContent(settings: settings),
+    );
+  }
 }
 
-class _SettingsPageState extends ConsumerState<SettingsPage> {
-  bool _loading = true;
-  String _baseUrl = '';
-  bool _autoRefreshEnabled = false;
-  int _autoRefreshInterval = 60;
+class _SettingsContent extends ConsumerWidget {
+  final AppSettings settings;
+  const _SettingsContent({required this.settings});
 
   @override
-  void initState() {
-    super.initState();
-    _loadSettings();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+
+    return ListView(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Text(
+            'Appearance',
+            style: theme.textTheme.titleSmall?.copyWith(
+              color: theme.colorScheme.primary,
+            ),
+          ),
+        ),
+        ListTile(
+          leading: const Icon(Icons.brightness_6_outlined),
+          title: const Text('Theme'),
+          subtitle: Text(
+            settings.themeMode.name[0].toUpperCase() +
+                settings.themeMode.name.substring(1),
+          ),
+          trailing: SegmentedButton<ThemeMode>(
+            segments: const [
+              ButtonSegment(
+                value: ThemeMode.system,
+                icon: Icon(Icons.settings_suggest_outlined),
+              ),
+              ButtonSegment(
+                value: ThemeMode.light,
+                icon: Icon(Icons.light_mode_outlined),
+              ),
+              ButtonSegment(
+                value: ThemeMode.dark,
+                icon: Icon(Icons.dark_mode_outlined),
+              ),
+            ],
+            selected: {settings.themeMode},
+            onSelectionChanged: (selected) {
+              ref
+                  .read(settingsProvider.notifier)
+                  .modify((s) => s.copyWith(themeMode: selected.first));
+            },
+          ),
+        ),
+        const Divider(),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Text(
+            'Server',
+            style: theme.textTheme.titleSmall?.copyWith(
+              color: theme.colorScheme.primary,
+            ),
+          ),
+        ),
+        ListTile(
+          leading: const Icon(Icons.dns_outlined),
+          title: const Text('API Base URL'),
+          subtitle: Text(settings.baseUrl),
+          onTap: () => _editBaseUrl(context, ref, settings.baseUrl),
+        ),
+        const Divider(),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Text(
+            'Auto Refresh',
+            style: theme.textTheme.titleSmall?.copyWith(
+              color: theme.colorScheme.primary,
+            ),
+          ),
+        ),
+        SwitchListTile(
+          secondary: const Icon(Icons.sync_outlined),
+          title: const Text('Auto Refresh Models'),
+          subtitle: Text(settings.autoRefreshEnabled ? 'Enabled' : 'Disabled'),
+          value: settings.autoRefreshEnabled,
+          onChanged: (value) {
+            ref
+                .read(settingsProvider.notifier)
+                .modify((s) => s.copyWith(autoRefreshEnabled: value));
+          },
+        ),
+        ListTile(
+          leading: const Icon(Icons.timer_outlined),
+          title: const Text('Refresh Interval'),
+          subtitle: Text('${settings.autoRefreshIntervalSeconds} seconds'),
+          enabled: settings.autoRefreshEnabled,
+          onTap: settings.autoRefreshEnabled
+              ? () => _editAutoRefreshInterval(
+                    context,
+                    ref,
+                    settings.autoRefreshIntervalSeconds,
+                  )
+              : null,
+        ),
+      ],
+    );
   }
 
-  Future<void> _loadSettings() async {
-    final results = await Future.wait([
-      widget.settings.getBaseUrl(),
-      widget.settings.getAutoRefreshEnabled(),
-      widget.settings.getAutoRefreshIntervalSeconds(),
-    ]);
-    setState(() {
-      _baseUrl = results[0] as String;
-      _autoRefreshEnabled = results[1] as bool;
-      _autoRefreshInterval = results[2] as int;
-      _loading = false;
-    });
-  }
-
-  Future<void> _editBaseUrl() async {
-    final controller = TextEditingController(text: _baseUrl);
+  Future<void> _editBaseUrl(
+    BuildContext context,
+    WidgetRef ref,
+    String currentUrl,
+  ) async {
+    final controller = TextEditingController(text: currentUrl);
     final newUrl = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -64,13 +152,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       ),
     );
     if (newUrl != null && newUrl.isNotEmpty) {
-      await widget.settings.setBaseUrl(newUrl);
-      setState(() => _baseUrl = newUrl);
+      ref
+          .read(settingsProvider.notifier)
+          .modify((s) => s.copyWith(baseUrl: newUrl));
     }
   }
 
-  Future<void> _editAutoRefreshInterval() async {
-    final controller = TextEditingController(text: _autoRefreshInterval.toString());
+  Future<void> _editAutoRefreshInterval(
+    BuildContext context,
+    WidgetRef ref,
+    int currentInterval,
+  ) async {
+    final controller = TextEditingController(text: currentInterval.toString());
     final newInterval = await showDialog<int>(
       context: context,
       builder: (context) => AlertDialog(
@@ -103,84 +196,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       ),
     );
     if (newInterval != null) {
-      await widget.settings.setAutoRefreshIntervalSeconds(newInterval);
-      setState(() => _autoRefreshInterval = newInterval);
+      ref
+          .read(settingsProvider.notifier)
+          .modify((s) => s.copyWith(autoRefreshIntervalSeconds: newInterval));
     }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    final theme = Theme.of(context);
-
-    final themeMode = ref.watch(themeModeProvider);
-
-    return ListView(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text('Appearance', style: theme.textTheme.titleSmall?.copyWith(
-            color: theme.colorScheme.primary,
-          )),
-        ),
-        ListTile(
-          leading: const Icon(Icons.brightness_6_outlined),
-          title: const Text('Theme'),
-          subtitle: Text(themeMode.name[0].toUpperCase() + themeMode.name.substring(1)),
-          trailing: SegmentedButton<ThemeMode>(
-            segments: const [
-              ButtonSegment(value: ThemeMode.system, icon: Icon(Icons.settings_suggest_outlined)),
-              ButtonSegment(value: ThemeMode.light, icon: Icon(Icons.light_mode_outlined)),
-              ButtonSegment(value: ThemeMode.dark, icon: Icon(Icons.dark_mode_outlined)),
-            ],
-            selected: {themeMode},
-            onSelectionChanged: (selected) {
-              ref.read(themeModeProvider.notifier).setThemeMode(selected.first);
-            },
-          ),
-        ),
-        const Divider(),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text('Server', style: theme.textTheme.titleSmall?.copyWith(
-            color: theme.colorScheme.primary,
-          )),
-        ),
-        ListTile(
-          leading: const Icon(Icons.dns_outlined),
-          title: const Text('API Base URL'),
-          subtitle: Text(_baseUrl),
-          onTap: _editBaseUrl,
-        ),
-        const Divider(),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text('Auto Refresh', style: theme.textTheme.titleSmall?.copyWith(
-            color: theme.colorScheme.primary,
-          )),
-        ),
-        SwitchListTile(
-          secondary: const Icon(Icons.sync_outlined),
-          title: const Text('Auto Refresh Models'),
-          subtitle: Text(_autoRefreshEnabled ? 'Enabled' : 'Disabled'),
-          value: _autoRefreshEnabled,
-          onChanged: (value) async {
-            await widget.settings.setAutoRefreshEnabled(value);
-            setState(() => _autoRefreshEnabled = value);
-          },
-        ),
-        ListTile(
-          leading: const Icon(Icons.timer_outlined),
-          title: const Text('Refresh Interval'),
-          subtitle: Text('$_autoRefreshInterval seconds'),
-          enabled: _autoRefreshEnabled,
-          onTap: _autoRefreshEnabled ? _editAutoRefreshInterval : null,
-        ),
-      ],
-    );
   }
 }

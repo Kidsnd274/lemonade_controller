@@ -16,14 +16,13 @@ class LemonadeController extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
-    final settings = ref.watch(settingServiceProvider);
 
     return MaterialApp(
       title: 'Lemonade Controller',
       theme: lightTheme,
       darkTheme: darkTheme,
       themeMode: themeMode,
-      home: MainPage(settings: settings),
+      home: const MainPage(),
     );
   }
 }

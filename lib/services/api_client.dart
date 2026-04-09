@@ -2,21 +2,17 @@ import 'package:dio/dio.dart';
 import 'package:lemonade_controller/models/lemonade_load_options.dart';
 import 'package:lemonade_controller/models/lemonade_unload_options.dart';
 import 'package:lemonade_controller/models/loaded_model.dart';
-import 'package:lemonade_controller/services/settings_service.dart';
 import 'package:lemonade_controller/utils/logger.dart';
 
 final logger = createLogger("api_client");
 
 class LemonadeApiClient {
   final Dio _dio = Dio();
-  final SettingsService _settingsService = SettingsService();
+  final String baseUrl;
 
-  Future<String> get baseUrl async {
-    return await _settingsService.getBaseUrl();
-  }
+  LemonadeApiClient({required this.baseUrl});
 
   Future<Map<String, dynamic>> getSystemInfo() async {
-    final baseUrl = await this.baseUrl;
     logger.i('Fetching system info from $baseUrl/system-info');
     try {
       final response = await _dio.get('$baseUrl/system-info');
@@ -33,7 +29,6 @@ class LemonadeApiClient {
   }
 
   Future<Map<String, dynamic>> getHealth() async {
-    final baseUrl = await this.baseUrl;
     logger.i('Fetching health status from $baseUrl/health');
     try {
       final response = await _dio.get('$baseUrl/health');
@@ -50,7 +45,6 @@ class LemonadeApiClient {
   }
 
   Future<List<dynamic>> getModelsList() async {
-    final baseUrl = await this.baseUrl;
     logger.i('Fetching models list from $baseUrl/models');
     try {
       final response = await _dio.get('$baseUrl/models');
@@ -69,7 +63,6 @@ class LemonadeApiClient {
   }
 
   Future<bool> loadModel(LemonadeLoadOptionsModel options) async {
-    final baseUrl = await this.baseUrl;
     logger.i('Sending command to load ${options.modelName}');
     try {
       final response = await _dio.post('$baseUrl/load', data: options.toJson());
@@ -81,7 +74,6 @@ class LemonadeApiClient {
   }
 
   Future<bool> unloadModel(LemonadeUnloadOptionsModel options) async {
-    final baseUrl = await this.baseUrl;
     logger.i('Sending command to unload ${options.modelName}');
     try {
       final response = await _dio.post(
