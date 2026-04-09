@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lemonade_controller/models/server_profile.dart';
 import 'package:lemonade_controller/services/settings_service.dart';
 
 class SettingsPage extends ConsumerWidget {
@@ -23,20 +24,10 @@ class _SettingsContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 8),
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text(
-            'Appearance',
-            style: theme.textTheme.titleSmall?.copyWith(
-              color: theme.colorScheme.primary,
-            ),
-          ),
-        ),
+        _SectionHeader(title: 'Appearance'),
         ListTile(
           leading: const Icon(Icons.brightness_6_outlined),
           title: const Text('Theme'),
@@ -68,31 +59,34 @@ class _SettingsContent extends ConsumerWidget {
           ),
         ),
         const Divider(),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text(
-            'Server',
-            style: theme.textTheme.titleSmall?.copyWith(
-              color: theme.colorScheme.primary,
-            ),
-          ),
-        ),
+        _SectionHeader(title: 'Server Profiles'),
         ListTile(
           leading: const Icon(Icons.dns_outlined),
-          title: const Text('API Base URL'),
-          subtitle: Text(settings.baseUrl),
-          onTap: () => _editBaseUrl(context, ref, settings.baseUrl),
-        ),
-        const Divider(),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text(
-            'Auto Refresh',
-            style: theme.textTheme.titleSmall?.copyWith(
-              color: theme.colorScheme.primary,
-            ),
+          title: const Text('Active Server'),
+          subtitle: Text(
+            '${settings.activeProfile.name} — ${settings.activeProfile.displayAddress}',
           ),
         ),
+        for (final profile in settings.serverProfiles)
+          _ServerProfileTile(
+            profile: profile,
+            isActive: profile.id == settings.activeProfileId,
+            isOnly: settings.serverProfiles.length == 1,
+            onEdit: () => _editProfile(context, ref, profile),
+            onDelete: () => _deleteProfile(context, ref, profile),
+            onSetActive: () =>
+                ref.read(settingsProvider.notifier).setActiveProfile(profile.id),
+          ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: OutlinedButton.icon(
+            onPressed: () => _addProfile(context, ref),
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Add Server'),
+          ),
+        ),
+        const Divider(),
+        _SectionHeader(title: 'Auto Refresh'),
         SwitchListTile(
           secondary: const Icon(Icons.sync_outlined),
           title: const Text('Auto Refresh Models'),
@@ -121,23 +115,103 @@ class _SettingsContent extends ConsumerWidget {
     );
   }
 
-  Future<void> _editBaseUrl(
+  Future<void> _addProfile(BuildContext context, WidgetRef ref) async {
+    final result = await _showProfileDialog(context);
+    if (result != null) {
+      final profile = ServerProfile(
+        id: ServerProfile.generateId(),
+        name: result.name,
+        baseUrl: result.url,
+      );
+      await ref.read(settingsProvider.notifier).addProfile(profile);
+    }
+  }
+
+  Future<void> _editProfile(
     BuildContext context,
     WidgetRef ref,
-    String currentUrl,
+    ServerProfile profile,
   ) async {
-    final controller = TextEditingController(text: currentUrl);
-    final newUrl = await showDialog<String>(
+    final result = await _showProfileDialog(
+      context,
+      initialName: profile.name,
+      initialUrl: profile.baseUrl,
+      title: 'Edit Server',
+    );
+    if (result != null) {
+      await ref.read(settingsProvider.notifier).updateProfile(
+            profile.copyWith(name: result.name, baseUrl: result.url),
+          );
+    }
+  }
+
+  Future<void> _deleteProfile(
+    BuildContext context,
+    WidgetRef ref,
+    ServerProfile profile,
+  ) async {
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('API Base URL'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            hintText: 'http://localhost:8020/api/v1',
-            border: OutlineInputBorder(),
+        title: const Text('Remove Server'),
+        content: Text('Remove "${profile.name}" from server profiles?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
           ),
-          onSubmitted: (value) => Navigator.pop(context, value),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await ref.read(settingsProvider.notifier).removeProfile(profile.id);
+    }
+  }
+
+  Future<_ProfileDialogResult?> _showProfileDialog(
+    BuildContext context, {
+    String? initialName,
+    String? initialUrl,
+    String title = 'Add Server',
+  }) async {
+    final nameController = TextEditingController(text: initialName ?? '');
+    final urlController = TextEditingController(
+      text: initialUrl ?? 'http://localhost:8020/api/v1',
+    );
+
+    return showDialog<_ProfileDialogResult>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                labelText: 'Name',
+                hintText: 'e.g. Production Server',
+                border: OutlineInputBorder(),
+              ),
+              autofocus: true,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: urlController,
+              decoration: const InputDecoration(
+                labelText: 'API Base URL',
+                hintText: 'http://host:port/api/v1',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -145,17 +219,21 @@ class _SettingsContent extends ConsumerWidget {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text),
+            onPressed: () {
+              if (nameController.text.trim().isEmpty) return;
+              Navigator.pop(
+                context,
+                _ProfileDialogResult(
+                  name: nameController.text.trim(),
+                  url: urlController.text.trim(),
+                ),
+              );
+            },
             child: const Text('Save'),
           ),
         ],
       ),
     );
-    if (newUrl != null && newUrl.isNotEmpty) {
-      ref
-          .read(settingsProvider.notifier)
-          .modify((s) => s.copyWith(baseUrl: newUrl));
-    }
   }
 
   Future<void> _editAutoRefreshInterval(
@@ -201,4 +279,88 @@ class _SettingsContent extends ConsumerWidget {
           .modify((s) => s.copyWith(autoRefreshIntervalSeconds: newInterval));
     }
   }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  const _SectionHeader({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Text(
+        title,
+        style: theme.textTheme.titleSmall?.copyWith(
+          color: theme.colorScheme.primary,
+        ),
+      ),
+    );
+  }
+}
+
+class _ServerProfileTile extends StatelessWidget {
+  final ServerProfile profile;
+  final bool isActive;
+  final bool isOnly;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  final VoidCallback onSetActive;
+
+  const _ServerProfileTile({
+    required this.profile,
+    required this.isActive,
+    required this.isOnly,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onSetActive,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return ListTile(
+      leading: Icon(
+        isActive ? Icons.check_circle : Icons.circle_outlined,
+        color: isActive ? colorScheme.primary : colorScheme.onSurfaceVariant,
+      ),
+      title: Text(
+        profile.name,
+        style: theme.textTheme.bodyLarge?.copyWith(
+          fontWeight: isActive ? FontWeight.w600 : null,
+        ),
+      ),
+      subtitle: Text(profile.displayAddress),
+      onTap: isActive ? null : onSetActive,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.edit_outlined, size: 20),
+            onPressed: onEdit,
+            tooltip: 'Edit',
+          ),
+          if (!isOnly)
+            IconButton(
+              icon: Icon(
+                Icons.delete_outline,
+                size: 20,
+                color: colorScheme.error,
+              ),
+              onPressed: onDelete,
+              tooltip: 'Remove',
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileDialogResult {
+  final String name;
+  final String url;
+  const _ProfileDialogResult({required this.name, required this.url});
 }

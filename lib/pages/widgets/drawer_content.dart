@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:lemonade_controller/pages/models_list/nav_item.dart';
+import 'package:lemonade_controller/pages/widgets/nav_item.dart';
+import 'package:lemonade_controller/pages/widgets/server_profile_header.dart';
 
 class DrawerContent extends StatelessWidget {
   final List<NavItem> items;
@@ -18,33 +19,81 @@ class DrawerContent extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return ListView(
-      padding: EdgeInsets.zero,
+    return Column(
       children: [
-        DrawerHeader(
-          decoration: BoxDecoration(color: colorScheme.primaryContainer),
-          child: Text(
-            'Lemonade Controller',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              color: colorScheme.onPrimaryContainer,
-            ),
+        const ServerProfileHeader(),
+        const SizedBox(height: 8),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            children: [
+              for (var i = 0; i < items.length; i++)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: _NavTile(
+                    item: items[i],
+                    selected: selectedIndex == i,
+                    colorScheme: colorScheme,
+                    textTheme: theme.textTheme,
+                    onTap: () => onTap(i),
+                  ),
+                ),
+            ],
           ),
         ),
-        for (var i = 0; i < items.length; i++)
-          ListTile(
-            leading: Icon(
-              items[i].icon,
-              color: selectedIndex == i
-                  ? colorScheme.primary
-                  : colorScheme.onSurfaceVariant,
-            ),
-            title: Text(items[i].title),
-            selected: selectedIndex == i,
-            selectedTileColor: colorScheme.primaryContainer.withOpacity(0.3),
-            selectedColor: colorScheme.primary,
-            onTap: () => onTap(i),
-          ),
       ],
+    );
+  }
+}
+
+class _NavTile extends StatelessWidget {
+  final NavItem item;
+  final bool selected;
+  final ColorScheme colorScheme;
+  final TextTheme textTheme;
+  final VoidCallback onTap;
+
+  const _NavTile({
+    required this.item,
+    required this.selected,
+    required this.colorScheme,
+    required this.textTheme,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? colorScheme.secondaryContainer : Colors.transparent,
+      borderRadius: BorderRadius.circular(28),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(28),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Icon(
+                selected ? item.selectedIcon : item.icon,
+                size: 22,
+                color: selected
+                    ? colorScheme.onSecondaryContainer
+                    : colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 14),
+              Text(
+                item.title,
+                style: textTheme.labelLarge?.copyWith(
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected
+                      ? colorScheme.onSecondaryContainer
+                      : colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
