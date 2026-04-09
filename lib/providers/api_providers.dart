@@ -28,11 +28,14 @@ class LoadingModelsNotifier extends StateNotifier<Set<String>> {
 
   LoadingModelsNotifier(this._apiClient, this._ref) : super({});
 
-  Future<bool> loadModel(String modelId) async {
+  Future<bool> loadModel(
+    String modelId, {
+    LemonadeLoadOptionsModel? options,
+  }) async {
     state = {...state, modelId};
     try {
-      final options = LemonadeLoadOptionsModel(modelName: modelId);
-      final result = await _apiClient.loadModel(options);
+      final opts = options ?? LemonadeLoadOptionsModel(modelName: modelId);
+      final result = await _apiClient.loadModel(opts);
       if (result) {
         await _ref.read(loadedModelsProvider.notifier).updateState();
       }

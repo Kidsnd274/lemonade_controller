@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lemonade_controller/pages/home/widgets/loaded_models_card.dart';
+import 'package:lemonade_controller/pages/home/widgets/loading_models_card.dart';
 import 'package:lemonade_controller/pages/home/widgets/recipes_card.dart';
 import 'package:lemonade_controller/pages/home/widgets/server_status_card.dart';
 import 'package:lemonade_controller/pages/home/widgets/system_specs_card.dart';
@@ -28,6 +29,7 @@ class _MobileLayout extends StatelessWidget {
       children: const [
         ServerStatusCard(),
         SizedBox(height: 8),
+        LoadingModelsCard(),
         LoadedModelsCard(),
         SizedBox(height: 8),
         SystemSpecsCard(),
@@ -51,6 +53,7 @@ class _WideLayout extends StatelessWidget {
             children: [
               const ServerStatusCard(),
               const SizedBox(height: 12),
+              const LoadingModelsCard(),
               IntrinsicHeight(
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,

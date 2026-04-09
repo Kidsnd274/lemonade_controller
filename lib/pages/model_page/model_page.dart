@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/models/lemonade_model.dart';
+import 'package:lemonade_controller/pages/model_page/configure_load_dialog.dart';
 import 'package:lemonade_controller/providers/api_providers.dart';
 import 'package:lemonade_controller/utils/quantization_color.dart';
 
@@ -299,15 +300,13 @@ class _ActionButtons extends ConsumerWidget {
                 label: Text(isLoading ? 'Loading…' : 'Load'),
               ),
 
-        // Configure
+        // Configure & Load
         OutlinedButton.icon(
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Configuration coming soon')),
-            );
-          },
+          onPressed: isLoading
+              ? null
+              : () => _configureAndLoad(context, ref),
           icon: const Icon(Icons.tune),
-          label: const Text('Configure'),
+          label: const Text('Configure & Load'),
         ),
 
         // Delete
@@ -326,6 +325,15 @@ class _ActionButtons extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  void _configureAndLoad(BuildContext context, WidgetRef ref) async {
+    final options = await showConfigureLoadDialog(context, model);
+    if (options == null || !context.mounted) return;
+    ref.read(loadingModelsProvider.notifier).loadModel(
+          model.id,
+          options: options,
+        );
   }
 
   void _confirmLoad(BuildContext context, WidgetRef ref) {
