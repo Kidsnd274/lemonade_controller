@@ -7,8 +7,15 @@ import 'package:lemonade_controller/utils/quantization_color.dart';
 
 class ModelCard extends ConsumerWidget {
   final LemonadeModel model;
+  final bool isFavourite;
+  final VoidCallback? onToggleFavourite;
 
-  const ModelCard({super.key, required this.model});
+  const ModelCard({
+    super.key,
+    required this.model,
+    this.isFavourite = false,
+    this.onToggleFavourite,
+  });
 
   Future<bool?> _showLoadConfirmation(BuildContext context) {
     return showDialog<bool>(
@@ -63,6 +70,18 @@ class ModelCard extends ConsumerWidget {
     return Card(
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+        leading: onToggleFavourite != null
+            ? IconButton(
+                onPressed: onToggleFavourite,
+                icon: Icon(
+                  isFavourite ? Icons.favorite : Icons.favorite_border,
+                  color: isFavourite ? theme.colorScheme.error : null,
+                ),
+                tooltip:
+                    isFavourite ? 'Remove from favourites' : 'Add to favourites',
+                visualDensity: VisualDensity.compact,
+              )
+            : null,
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => ModelPage(model: model)),

@@ -12,6 +12,7 @@ class AppSettings {
   final int autoRefreshIntervalSeconds;
   final List<ServerProfile> serverProfiles;
   final String activeProfileId;
+  final Set<String> favouriteModelIds;
 
   const AppSettings({
     this.themeMode = ThemeMode.system,
@@ -19,6 +20,7 @@ class AppSettings {
     this.autoRefreshIntervalSeconds = defaultAutoRefreshIntervalSeconds,
     this.serverProfiles = const [],
     this.activeProfileId = 'default',
+    this.favouriteModelIds = const {},
   });
 
   ServerProfile get activeProfile {
@@ -37,6 +39,7 @@ class AppSettings {
     int? autoRefreshIntervalSeconds,
     List<ServerProfile>? serverProfiles,
     String? activeProfileId,
+    Set<String>? favouriteModelIds,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
@@ -45,6 +48,7 @@ class AppSettings {
           autoRefreshIntervalSeconds ?? this.autoRefreshIntervalSeconds,
       serverProfiles: serverProfiles ?? this.serverProfiles,
       activeProfileId: activeProfileId ?? this.activeProfileId,
+      favouriteModelIds: favouriteModelIds ?? this.favouriteModelIds,
     );
   }
 
@@ -56,7 +60,8 @@ class AppSettings {
           autoRefreshEnabled == other.autoRefreshEnabled &&
           autoRefreshIntervalSeconds == other.autoRefreshIntervalSeconds &&
           activeProfileId == other.activeProfileId &&
-          _profileListEquals(serverProfiles, other.serverProfiles);
+          _profileListEquals(serverProfiles, other.serverProfiles) &&
+          _setEquals(favouriteModelIds, other.favouriteModelIds);
 
   static bool _profileListEquals(
     List<ServerProfile> a,
@@ -69,6 +74,11 @@ class AppSettings {
     return true;
   }
 
+  static bool _setEquals(Set<String> a, Set<String> b) {
+    if (a.length != b.length) return false;
+    return a.containsAll(b);
+  }
+
   @override
   int get hashCode => Object.hash(
         themeMode,
@@ -76,6 +86,7 @@ class AppSettings {
         autoRefreshIntervalSeconds,
         activeProfileId,
         Object.hashAll(serverProfiles),
+        Object.hashAll(favouriteModelIds),
       );
 }
 
@@ -86,6 +97,7 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
       'auto_refresh_interval_seconds';
   static const _keyServerProfiles = 'server_profiles';
   static const _keyActiveProfileId = 'active_profile_id';
+  static const _keyFavouriteModelIds = 'favourite_model_ids';
 
   // Legacy key for migration
   static const _keyBaseUrl = 'base_url';
@@ -116,6 +128,9 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
       await prefs.remove(_keyBaseUrl);
     }
 
+    final favouriteIds =
+        prefs.getStringList(_keyFavouriteModelIds)?.toSet() ?? {};
+
     return AppSettings(
       themeMode: ThemeMode.values.firstWhere(
         (m) => m.name == prefs.getString(_keyThemeMode),
@@ -127,6 +142,7 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
               AppSettings.defaultAutoRefreshIntervalSeconds,
       serverProfiles: profiles,
       activeProfileId: activeId,
+      favouriteModelIds: favouriteIds,
     );
   }
 
@@ -150,6 +166,10 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
         ServerProfile.encodeList(next.serverProfiles),
       ),
       prefs.setString(_keyActiveProfileId, next.activeProfileId),
+      prefs.setStringList(
+        _keyFavouriteModelIds,
+        next.favouriteModelIds.toList(),
+      ),
     ]);
     state = AsyncData(next);
   }
@@ -178,6 +198,14 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
       final newActiveId =
           s.activeProfileId == profileId ? remaining.first.id : s.activeProfileId;
       return s.copyWith(serverProfiles: remaining, activeProfileId: newActiveId);
+    });
+  }
+
+  Future<void> toggleFavourite(String modelId) async {
+    await modify((s) {
+      final updated = Set<String>.of(s.favouriteModelIds);
+      if (!updated.remove(modelId)) updated.add(modelId);
+      return s.copyWith(favouriteModelIds: updated);
     });
   }
 
