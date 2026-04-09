@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsService {
@@ -10,7 +11,20 @@ class SettingsService {
   static const bool _defaultAutoRefreshEnabled = false;
   static const int _defaultAutoRefreshIntervalSeconds = 60;
 
-  // Getters
+  Future<ThemeMode> getThemeMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = prefs.getString(_keyThemeMode);
+    return ThemeMode.values.firstWhere(
+      (m) => m.name == value,
+      orElse: () => ThemeMode.system,
+    );
+  }
+
+  Future<bool> setThemeMode(ThemeMode mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.setString(_keyThemeMode, mode.name);
+  }
+
   Future<String> getBaseUrl() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_keyBaseUrl) ?? _defaultBaseUrl;

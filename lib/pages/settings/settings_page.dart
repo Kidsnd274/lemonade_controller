@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lemonade_controller/providers/service_providers.dart';
 import 'package:lemonade_controller/services/settings_service.dart';
 
-class SettingsPage extends StatefulWidget {
+class SettingsPage extends ConsumerStatefulWidget {
   final SettingsService settings;
   const SettingsPage({super.key, required this.settings});
 
   @override
-  State<SettingsPage> createState() => _SettingsPageState();
+  ConsumerState<SettingsPage> createState() => _SettingsPageState();
 }
 
-class _SettingsPageState extends State<SettingsPage> {
+class _SettingsPageState extends ConsumerState<SettingsPage> {
   bool _loading = true;
   String _baseUrl = '';
   bool _autoRefreshEnabled = false;
@@ -114,9 +116,34 @@ class _SettingsPageState extends State<SettingsPage> {
 
     final theme = Theme.of(context);
 
+    final themeMode = ref.watch(themeModeProvider);
+
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 8),
       children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Text('Appearance', style: theme.textTheme.titleSmall?.copyWith(
+            color: theme.colorScheme.primary,
+          )),
+        ),
+        ListTile(
+          leading: const Icon(Icons.brightness_6_outlined),
+          title: const Text('Theme'),
+          subtitle: Text(themeMode.name[0].toUpperCase() + themeMode.name.substring(1)),
+          trailing: SegmentedButton<ThemeMode>(
+            segments: const [
+              ButtonSegment(value: ThemeMode.system, icon: Icon(Icons.settings_suggest_outlined)),
+              ButtonSegment(value: ThemeMode.light, icon: Icon(Icons.light_mode_outlined)),
+              ButtonSegment(value: ThemeMode.dark, icon: Icon(Icons.dark_mode_outlined)),
+            ],
+            selected: {themeMode},
+            onSelectionChanged: (selected) {
+              ref.read(themeModeProvider.notifier).setThemeMode(selected.first);
+            },
+          ),
+        ),
+        const Divider(),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: Text('Server', style: theme.textTheme.titleSmall?.copyWith(
