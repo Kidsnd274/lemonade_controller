@@ -7,13 +7,13 @@ import 'package:lemonade_controller/pages/settings/settings_page.dart';
 import 'package:lemonade_controller/pages/widgets/drawer_content.dart';
 import 'package:lemonade_controller/providers/providers.dart';
 
-enum _ScreenSize { compact, medium, expanded }
+enum ScreenSize { compact, medium, expanded }
 
-_ScreenSize _screenSizeOf(BuildContext context) {
+ScreenSize screenSizeOf(BuildContext context) {
   final width = MediaQuery.sizeOf(context).width;
-  if (width < 600) return _ScreenSize.compact;
-  if (width < 1024) return _ScreenSize.medium;
-  return _ScreenSize.expanded;
+  if (width < 600) return ScreenSize.compact;
+  if (width < 1024) return ScreenSize.medium;
+  return ScreenSize.expanded;
 }
 
 class MainPage extends StatefulWidget {
@@ -45,16 +45,16 @@ class _MainPageState extends State<MainPage> {
 
   @override
   Widget build(BuildContext context) {
-    final screenSize = _screenSizeOf(context);
+    final screenSize = screenSizeOf(context);
     final content = KeyedSubtree(
       key: _pageKeys[_selectedIndex],
       child: _navItems[_selectedIndex].page,
     );
 
     return switch (screenSize) {
-      _ScreenSize.compact => _buildMobileLayout(content),
-      _ScreenSize.medium => _buildTabletLayout(content),
-      _ScreenSize.expanded => _buildDesktopLayout(content),
+      ScreenSize.compact => _buildMobileLayout(content),
+      ScreenSize.medium => _buildTabletLayout(content),
+      ScreenSize.expanded => _buildDesktopLayout(content),
     };
   }
 
