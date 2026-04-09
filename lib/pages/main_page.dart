@@ -6,7 +6,6 @@ import 'package:lemonade_controller/pages/models_list/nav_item.dart';
 import 'package:lemonade_controller/pages/settings/settings_page.dart';
 import 'package:lemonade_controller/pages/widgets/drawer_content.dart';
 import 'package:lemonade_controller/providers/providers.dart';
-import 'package:lemonade_controller/services/settings_service.dart';
 
 enum _ScreenSize { compact, medium, expanded }
 
@@ -18,8 +17,7 @@ _ScreenSize _screenSizeOf(BuildContext context) {
 }
 
 class MainPage extends StatefulWidget {
-  final SettingsService settings;
-  const MainPage({super.key, required this.settings});
+  const MainPage({super.key});
 
   @override
   State<MainPage> createState() => _MainPageState();
@@ -28,21 +26,20 @@ class MainPage extends StatefulWidget {
 class _MainPageState extends State<MainPage> {
   int _selectedIndex = 0;
 
-  late final List<NavItem> _navItems;
+  static final List<NavItem> _navItems = [
+    NavItem(title: 'Home', icon: Icons.home, page: const HomePage()),
+    NavItem(title: 'Models', icon: Icons.view_list, page: ModelsPage()),
+    NavItem(
+      title: 'Settings',
+      icon: Icons.settings,
+      page: const SettingsPage(),
+    ),
+  ];
   late final List<GlobalKey> _pageKeys;
 
   @override
   void initState() {
     super.initState();
-    _navItems = [
-      NavItem(title: 'Home', icon: Icons.home, page: const HomePage()),
-      NavItem(title: 'Models', icon: Icons.view_list, page: ModelsPage()),
-      NavItem(
-        title: 'Settings',
-        icon: Icons.settings,
-        page: SettingsPage(settings: widget.settings),
-      ),
-    ];
     _pageKeys = List.generate(_navItems.length, (_) => GlobalKey());
   }
 
