@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/models/lemonade_model.dart';
 import 'package:lemonade_controller/providers/api_providers.dart';
+import 'package:lemonade_controller/utils/quantization_color.dart';
 
 class ModelCard extends ConsumerWidget {
   final LemonadeModel model;
@@ -92,13 +93,14 @@ class ModelCard extends ConsumerWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.secondary,
+                  color: quantizationColor(model.quantizationLevel),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
                   model.quantization,
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSecondary,
+                    color: quantizationForegroundColor(
+                        model.quantizationLevel),
                   ),
                 ),
               ),

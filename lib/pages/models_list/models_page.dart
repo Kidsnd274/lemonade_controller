@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/models/lemonade_model.dart';
 import 'package:lemonade_controller/providers/api_providers.dart';
 import 'package:lemonade_controller/pages/models_list/widgets/model_card.dart';
+import 'package:lemonade_controller/utils/quantization_color.dart';
 
 enum UserModelFilter { all, userOnly, nonUserOnly }
 
@@ -23,6 +24,14 @@ class _ModelsPageState extends ConsumerState<ModelsPage> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  static final _qLevelPattern = RegExp(r'Q(\d)');
+
+  static int? _parseQLevel(String quantization) {
+    final match = _qLevelPattern.firstMatch(quantization);
+    if (match == null) return null;
+    return int.parse(match.group(1)!);
   }
 
   List<String> _extractQuantizations(List<LemonadeModel> models) {
@@ -167,10 +176,27 @@ class _ModelsPageState extends ConsumerState<ModelsPage> {
                                   child: Text('All quants'),
                                 ),
                                 ...quantizations.map(
-                                  (q) => DropdownMenuItem<String?>(
-                                    value: q,
-                                    child: Text(q),
-                                  ),
+                                  (q) {
+                                    final level = _parseQLevel(q);
+                                    return DropdownMenuItem<String?>(
+                                      value: q,
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Container(
+                                            width: 12,
+                                            height: 12,
+                                            decoration: BoxDecoration(
+                                              color: quantizationColor(level),
+                                              shape: BoxShape.circle,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(q),
+                                        ],
+                                      ),
+                                    );
+                                  },
                                 ),
                               ],
                               onChanged: (value) => setState(
