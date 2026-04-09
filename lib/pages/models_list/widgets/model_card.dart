@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/models/lemonade_model.dart';
+import 'package:lemonade_controller/pages/model_page/model_page.dart';
 import 'package:lemonade_controller/providers/api_providers.dart';
 import 'package:lemonade_controller/utils/quantization_color.dart';
 
@@ -62,6 +63,10 @@ class ModelCard extends ConsumerWidget {
     return Card(
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => ModelPage(model: model)),
+        ),
         title: Row(
           children: [
             if (model.isUserModel) ...[
