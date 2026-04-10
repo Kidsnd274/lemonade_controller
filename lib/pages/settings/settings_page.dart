@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/models/server_profile.dart';
 import 'package:lemonade_controller/services/settings_service.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -111,7 +112,55 @@ class _SettingsContent extends ConsumerWidget {
                   )
               : null,
         ),
+        const Divider(),
+        ListTile(
+          leading: const Icon(Icons.info_outline),
+          title: const Text('About'),
+          onTap: () => _showAboutPopup(context),
+        ),
       ],
+    );
+  }
+
+  Future<void> _showAboutPopup(BuildContext context) async {
+    final info = await PackageInfo.fromPlatform();
+    if (!context.mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.asset(
+                'assets/icon/app_icon.png',
+                width: 80,
+                height: 80,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              info.appName,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'v${info.version}',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
     );
   }
 
