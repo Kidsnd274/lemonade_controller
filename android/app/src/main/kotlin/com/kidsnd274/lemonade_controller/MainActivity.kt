@@ -1,4 +1,4 @@
-package com.example.lemonade_controller
+package com.kidsnd274.lemonade_controller
 
 import io.flutter.embedding.android.FlutterActivity
 
