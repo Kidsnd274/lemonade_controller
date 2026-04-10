@@ -3,7 +3,22 @@
 ; Non-commercial use only
 
 #define MyAppName "Lemonade Controller"
-#define MyAppVersion "1.0.0"
+
+; Read version from pubspec.yaml
+#define FindVersionLine(int fh) \
+    FileEof(fh) ? "0.0.0" : \
+        (Local[0] = FileRead(fh), \
+         Pos("version:", Local[0]) == 1 ? \
+            Trim(Copy(Local[0], 9)) : \
+            FindVersionLine(fh))
+
+#define StripBuildNumber(str V) \
+    Pos("+", V) > 0 ? Copy(V, 1, Pos("+", V) - 1) : V
+
+#define PubspecFile SourcePath + "\..\..\pubspec.yaml"
+#define FileHandle FileOpen(PubspecFile)
+#define MyAppVersion StripBuildNumber(FindVersionLine(FileHandle))
+#expr FileClose(FileHandle)
 #define MyAppPublisher "Kidsnd274"
 #define MyAppURL "https://github.com/Kidsnd274/lemonade_controller"
 #define MyAppExeName "lemonade_controller.exe"
@@ -34,7 +49,7 @@ DisableProgramGroupPage=yes
 ;PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 OutputDir={#SourcePath}\output
-OutputBaseFilename=lemonade-controller-setup
+OutputBaseFilename=lemonade-controller-{#MyAppVersion}-windows-setup
 SetupIconFile={#SourcePath}\..\runner\resources\app_icon.ico
 AppendDefaultDirName=yes
 UsePreviousAppDir=yes
@@ -60,3 +75,5 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
+[UninstallDelete]
+Type: filesandordirs; Name: "{app}\*"
