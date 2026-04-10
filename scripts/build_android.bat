@@ -36,7 +36,7 @@ for /f "tokens=1,2 delims=+" %%A in ("!VERSION_LINE!") do (
 )
 
 if not defined BUILD_NUMBER set "BUILD_NUMBER=0"
-set "VERSION_TAG=!APP_VERSION!-!BUILD_NUMBER!"
+set "VERSION_TAG=!APP_VERSION!"
 
 echo.
 echo  ============================================

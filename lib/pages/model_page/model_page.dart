@@ -66,6 +66,7 @@ class ModelPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        centerTitle: false,
         backgroundColor: theme.colorScheme.inversePrimary,
         title: const Text('Model Details'),
       ),

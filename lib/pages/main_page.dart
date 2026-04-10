@@ -149,6 +149,7 @@ class _MainPageState extends State<MainPage> {
   AppBar _buildAppBar() {
     final theme = Theme.of(context);
     return AppBar(
+      centerTitle: false,
       title: Text(
         _navItems[_selectedIndex].title,
         style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
