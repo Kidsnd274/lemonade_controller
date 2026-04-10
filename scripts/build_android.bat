@@ -2,7 +2,8 @@
 setlocal EnableExtensions EnableDelayedExpansion
 
 set "ROOT_DIR=%~dp0.."
-set "OUTPUT_DIR=%ROOT_DIR%\build\app\outputs\flutter-apk"
+set "APK_DIR=%ROOT_DIR%\build\app\outputs\flutter-apk"
+set "OUTPUT_DIR=%ROOT_DIR%\build\output"
 set "APP_NAME=lemonade-controller"
 
 if "%~1"=="" (
@@ -12,25 +13,18 @@ if "%~1"=="" (
 )
 
 pushd "%ROOT_DIR%" || (
-    echo Failed to open project root: "%ROOT_DIR%"
+    echo  [x] Failed to open project root: "%ROOT_DIR%"
     exit /b 1
 )
 
-echo Building APKs with args: !BUILD_ARGS!
-call flutter build apk !BUILD_ARGS!
-if errorlevel 1 (
-    echo Flutter build failed. Skipping rename step.
-    popd
-    exit /b 1
-)
-
+:: Extract version from pubspec.yaml
 set "VERSION_LINE="
 for /f "usebackq tokens=1,* delims=:" %%A in (`findstr /b /c:"version:" "pubspec.yaml"`) do (
     set "VERSION_LINE=%%B"
 )
 
 if not defined VERSION_LINE (
-    echo Could not read "version:" from pubspec.yaml
+    echo  [x] Could not read "version:" from pubspec.yaml
     popd
     exit /b 1
 )
@@ -44,14 +38,40 @@ for /f "tokens=1,2 delims=+" %%A in ("!VERSION_LINE!") do (
 if not defined BUILD_NUMBER set "BUILD_NUMBER=0"
 set "VERSION_TAG=!APP_VERSION!-!BUILD_NUMBER!"
 
-if not exist "%OUTPUT_DIR%\*.apk" (
-    echo No APK files found in "%OUTPUT_DIR%"
+echo.
+echo  ============================================
+echo   Lemonade Controller - Android Build
+echo   Version: !APP_VERSION! ^(+!BUILD_NUMBER!^)
+echo  ============================================
+echo.
+
+:: Build the Flutter APKs
+echo  [1/2] Building APKs  [args: !BUILD_ARGS!]
+echo  --------------------------------------------
+call flutter build apk !BUILD_ARGS!
+if errorlevel 1 (
+    echo.
+    echo  [x] Flutter build failed!
+    popd
+    exit /b 1
+)
+echo.
+echo  [ok]  Flutter build complete.
+echo.
+
+:: Copy and rename APKs
+if not exist "%APK_DIR%\*.apk" (
+    echo  [x] No APK files found in "%APK_DIR%"
     popd
     exit /b 1
 )
 
-echo Renaming APK outputs in "%OUTPUT_DIR%"...
-for %%F in ("%OUTPUT_DIR%\*.apk") do (
+if not exist "%OUTPUT_DIR%" mkdir "%OUTPUT_DIR%"
+
+echo  [2/2] Copying APKs to output...
+echo  --------------------------------------------
+set "APK_COUNT=0"
+for %%F in ("%APK_DIR%\*.apk") do (
     set "FILE_BASE=%%~nF"
     set "ABI=universal"
     set "BUILD_TYPE=release"
@@ -66,19 +86,26 @@ for %%F in ("%OUTPUT_DIR%\*.apk") do (
 
     set "NEW_NAME=%APP_NAME%-!VERSION_TAG!-!BUILD_TYPE!-!ABI!.apk"
 
-    if /i not "%%~nxF"=="!NEW_NAME!" (
-        if exist "%OUTPUT_DIR%\!NEW_NAME!" del /f /q "%OUTPUT_DIR%\!NEW_NAME!"
-        ren "%%~fF" "!NEW_NAME!"
-        if errorlevel 1 (
-            echo Failed to rename "%%~nxF"
-        ) else (
-            echo   %%~nxF ^> !NEW_NAME!
-        )
+    if exist "%OUTPUT_DIR%\!NEW_NAME!" del /f /q "%OUTPUT_DIR%\!NEW_NAME!"
+    copy /y "%%~fF" "%OUTPUT_DIR%\!NEW_NAME!" >nul
+    if errorlevel 1 (
+        echo    [x] %%~nxF
     ) else (
-        echo   %%~nxF (already named)
+        echo    [ok]  !NEW_NAME!
+        set /a APK_COUNT+=1
     )
 )
 
-echo Done.
+echo.
+echo  ============================================
+echo   Build complete! !APK_COUNT! APK^(s^) output.
+echo.
+echo   Output:
+for %%F in ("%OUTPUT_DIR%\%APP_NAME%*.apk") do (
+    echo     %%~nxF
+)
+echo  ============================================
+echo.
+
 popd
 exit /b 0
