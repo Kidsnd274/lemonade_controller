@@ -118,8 +118,51 @@ class _SettingsContent extends ConsumerWidget {
           title: const Text('About'),
           onTap: () => _showAboutPopup(context),
         ),
+        const Divider(),
+        _SectionHeader(title: 'Danger Zone'),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: OutlinedButton.icon(
+            onPressed: () => _resetSettings(context, ref),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+              side: BorderSide(color: Theme.of(context).colorScheme.error),
+            ),
+            icon: const Icon(Icons.restore),
+            label: const Text('Reset All Settings'),
+          ),
+        ),
       ],
     );
+  }
+
+  Future<void> _resetSettings(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reset Settings'),
+        content: const Text(
+          'This will reset all settings to their defaults, including server '
+          'profiles and favourites. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await ref.read(settingsProvider.notifier).reset();
+    }
   }
 
   Future<void> _showAboutPopup(BuildContext context) async {

@@ -212,7 +212,17 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
   Future<void> reset() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
-    state = const AsyncData(AppSettings());
+    final defaults = AppSettings(
+      serverProfiles: [ServerProfile.createDefault()],
+    );
+    await Future.wait([
+      prefs.setString(
+        _keyServerProfiles,
+        ServerProfile.encodeList(defaults.serverProfiles),
+      ),
+      prefs.setString(_keyActiveProfileId, defaults.activeProfileId),
+    ]);
+    state = AsyncData(defaults);
   }
 }
 
