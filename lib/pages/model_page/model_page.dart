@@ -30,8 +30,9 @@ const _quantizationBitsPerWeight = <String, double>{
 /// Tries to extract a parameter count (in billions) from a model name or
 /// checkpoint string. Looks for patterns like "7b", "0.5B", "72b", etc.
 double? _extractParamsBillions(String text) {
-  final match =
-      RegExp(r'(?:^|[-_./])(\d+(?:\.\d+)?)[bB](?:[-_.]|$)').firstMatch(text);
+  final match = RegExp(
+    r'(?:^|[-_./])(\d+(?:\.\d+)?)[bB](?:[-_.]|$)',
+  ).firstMatch(text);
   return match != null ? double.tryParse(match.group(1)!) : null;
 }
 
@@ -134,10 +135,12 @@ class _Header extends StatelessWidget {
                   if (model.isUserModel)
                     _Badge(
                       label: model.quantization,
-                      backgroundColor:
-                          quantizationColor(model.quantizationLevel),
-                      foregroundColor:
-                          quantizationForegroundColor(model.quantizationLevel),
+                      backgroundColor: quantizationColor(
+                        model.quantizationLevel,
+                      ),
+                      foregroundColor: quantizationForegroundColor(
+                        model.quantizationLevel,
+                      ),
                     ),
                 ],
               ),
@@ -147,12 +150,14 @@ class _Header extends StatelessWidget {
                   spacing: 6,
                   runSpacing: 4,
                   children: model.labels
-                      .map((l) => Chip(
-                            label: Text(l),
-                            visualDensity: VisualDensity.compact,
-                            materialTapTargetSize:
-                                MaterialTapTargetSize.shrinkWrap,
-                          ))
+                      .map(
+                        (l) => Chip(
+                          label: Text(l),
+                          visualDensity: VisualDensity.compact,
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      )
                       .toList(),
                 ),
               ],
@@ -188,9 +193,9 @@ class _Badge extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: foregroundColor,
-              fontWeight: FontWeight.w600,
-            ),
+          color: foregroundColor,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
@@ -285,9 +290,7 @@ class _ActionButtons extends ConsumerWidget {
                 label: Text(isLoading ? 'Unloading…' : 'Unload'),
               )
             : FilledButton.icon(
-                onPressed: isLoading
-                    ? null
-                    : () => _confirmLoad(context, ref),
+                onPressed: isLoading ? null : () => _confirmLoad(context, ref),
                 icon: isLoading
                     ? const SizedBox(
                         width: 16,
@@ -303,9 +306,7 @@ class _ActionButtons extends ConsumerWidget {
 
         // Configure & Load
         OutlinedButton.icon(
-          onPressed: isLoading
-              ? null
-              : () => _configureAndLoad(context, ref),
+          onPressed: isLoading ? null : () => _configureAndLoad(context, ref),
           icon: const Icon(Icons.tune),
           label: const Text('Configure & Load'),
         ),
@@ -319,9 +320,7 @@ class _ActionButtons extends ConsumerWidget {
             style: TextStyle(color: theme.colorScheme.error),
           ),
           style: OutlinedButton.styleFrom(
-            side: BorderSide(
-              color: theme.colorScheme.error.withAlpha(120),
-            ),
+            side: BorderSide(color: theme.colorScheme.error.withAlpha(120)),
           ),
         ),
       ],
@@ -331,10 +330,9 @@ class _ActionButtons extends ConsumerWidget {
   void _configureAndLoad(BuildContext context, WidgetRef ref) async {
     final options = await showConfigureLoadDialog(context, model);
     if (options == null || !context.mounted) return;
-    ref.read(loadingModelsProvider.notifier).loadModel(
-          model.id,
-          options: options,
-        );
+    ref
+        .read(loadingModelsProvider.notifier)
+        .loadModel(model.id, options: options);
   }
 
   void _confirmLoad(BuildContext context, WidgetRef ref) {
@@ -349,6 +347,7 @@ class _ActionButtons extends ConsumerWidget {
             child: const Text('Cancel'),
           ),
           FilledButton(
+            autofocus: true,
             onPressed: () {
               Navigator.of(ctx).pop();
               ref.read(loadingModelsProvider.notifier).loadModel(model.id);
@@ -365,8 +364,9 @@ class _ActionButtons extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Unload Model'),
-        content:
-            Text('Are you sure you want to unload "${model.displayName}"?'),
+        content: Text(
+          'Are you sure you want to unload "${model.displayName}"?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
@@ -391,8 +391,11 @@ class _ActionButtons extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.warning_amber_rounded,
-            size: 48, color: Colors.red),
+        icon: const Icon(
+          Icons.warning_amber_rounded,
+          size: 48,
+          color: Colors.red,
+        ),
         title: const Text('Delete Model?'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -468,7 +471,8 @@ class _ModelDetailsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final paramsBillions = _extractParamsBillions(model.id) ??
+    final paramsBillions =
+        _extractParamsBillions(model.id) ??
         _extractParamsBillions(model.checkpoint.split(':').first);
     final vramEstimate = paramsBillions != null
         ? _estimateVramGb(paramsBillions, model.quantization)
@@ -487,8 +491,11 @@ class _ModelDetailsCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(Icons.info_outline,
-                    size: 20, color: theme.colorScheme.primary),
+                Icon(
+                  Icons.info_outline,
+                  size: 20,
+                  color: theme.colorScheme.primary,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   'Model Details',
@@ -554,8 +561,11 @@ class _RecipeOptionsCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(Icons.settings_suggest,
-                    size: 20, color: theme.colorScheme.primary),
+                Icon(
+                  Icons.settings_suggest,
+                  size: 20,
+                  color: theme.colorScheme.primary,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   'Recipe Options',

@@ -5,7 +5,9 @@ import 'package:lemonade_controller/providers/api_providers.dart';
 import 'package:lemonade_controller/utils/quantization_color.dart';
 
 Future<bool?> _showUnloadConfirmation(
-    BuildContext context, String displayName) {
+  BuildContext context,
+  String displayName,
+) {
   return showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
@@ -21,6 +23,7 @@ Future<bool?> _showUnloadConfirmation(
             backgroundColor: Theme.of(ctx).colorScheme.error,
           ),
           onPressed: () => Navigator.of(ctx).pop(true),
+          autofocus: true,
           child: const Text('Unload'),
         ),
       ],
@@ -166,7 +169,9 @@ class _LoadedModelTile extends ConsumerWidget {
                   if (_quantization.isNotEmpty)
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: quantizationColor(_quantizationLevel),
                         borderRadius: BorderRadius.circular(10),
@@ -176,13 +181,23 @@ class _LoadedModelTile extends ConsumerWidget {
                         style: theme.textTheme.labelSmall?.copyWith(
                           fontWeight: FontWeight.w600,
                           color: quantizationForegroundColor(
-                              _quantizationLevel),
+                            _quantizationLevel,
+                          ),
                         ),
                       ),
                     ),
-                  _MiniChip(label: recipe, color: theme.colorScheme.primaryContainer),
-                  _MiniChip(label: device, color: theme.colorScheme.secondaryContainer),
-                  _MiniChip(label: type, color: theme.colorScheme.tertiaryContainer),
+                  _MiniChip(
+                    label: recipe,
+                    color: theme.colorScheme.primaryContainer,
+                  ),
+                  _MiniChip(
+                    label: device,
+                    color: theme.colorScheme.secondaryContainer,
+                  ),
+                  _MiniChip(
+                    label: type,
+                    color: theme.colorScheme.tertiaryContainer,
+                  ),
                   if (_contextSize.isNotEmpty)
                     _MiniChip(
                       label: _contextSize,
@@ -218,12 +233,12 @@ class _LoadedModelTile extends ConsumerWidget {
         else
           IconButton(
             onPressed: () async {
-              final confirmed =
-                  await _showUnloadConfirmation(context, _displayName);
+              final confirmed = await _showUnloadConfirmation(
+                context,
+                _displayName,
+              );
               if (confirmed == true && context.mounted) {
-                ref
-                    .read(loadingModelsProvider.notifier)
-                    .unloadModel(modelName);
+                ref.read(loadingModelsProvider.notifier).unloadModel(modelName);
               }
             },
             icon: const Icon(Icons.stop_circle_outlined),

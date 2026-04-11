@@ -30,6 +30,7 @@ class ModelCard extends ConsumerWidget {
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
+            autofocus: true,
             child: const Text('Load'),
           ),
         ],
@@ -42,8 +43,9 @@ class ModelCard extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Unload Model'),
-        content:
-            Text('Are you sure you want to unload "${model.displayName}"?'),
+        content: Text(
+          'Are you sure you want to unload "${model.displayName}"?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -54,6 +56,7 @@ class ModelCard extends ConsumerWidget {
               backgroundColor: Theme.of(ctx).colorScheme.error,
             ),
             onPressed: () => Navigator.of(ctx).pop(true),
+            autofocus: true,
             child: const Text('Unload'),
           ),
         ],
@@ -77,8 +80,9 @@ class ModelCard extends ConsumerWidget {
                   isFavourite ? Icons.favorite : Icons.favorite_border,
                   color: isFavourite ? theme.colorScheme.error : null,
                 ),
-                tooltip:
-                    isFavourite ? 'Remove from favourites' : 'Add to favourites',
+                tooltip: isFavourite
+                    ? 'Remove from favourites'
+                    : 'Add to favourites',
                 visualDensity: VisualDensity.compact,
               )
             : null,
@@ -90,8 +94,7 @@ class ModelCard extends ConsumerWidget {
           children: [
             if (model.isUserModel) ...[
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.primary,
                   borderRadius: BorderRadius.circular(4),
@@ -115,8 +118,7 @@ class ModelCard extends ConsumerWidget {
             if (model.isUserModel) ...[
               const SizedBox(width: 4),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                 decoration: BoxDecoration(
                   color: quantizationColor(model.quantizationLevel),
                   borderRadius: BorderRadius.circular(4),
@@ -124,8 +126,7 @@ class ModelCard extends ConsumerWidget {
                 child: Text(
                   model.quantization,
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: quantizationForegroundColor(
-                        model.quantizationLevel),
+                    color: quantizationForegroundColor(model.quantizationLevel),
                   ),
                 ),
               ),
@@ -161,33 +162,33 @@ class ModelCard extends ConsumerWidget {
                 ),
               )
             : isLoaded
-                ? IconButton(
-                    onPressed: () async {
-                      final confirmed =
-                          await _showUnloadConfirmation(context);
-                      if (confirmed == true && context.mounted) {
-                        ref
-                            .read(loadingModelsProvider.notifier)
-                            .unloadModel(model.id);
-                      }
-                    },
-                    icon: const Icon(Icons.stop_circle_outlined),
-                    tooltip: 'Unload model',
-                    color: theme.colorScheme.error,
-                  )
-                : IconButton(
-                    onPressed: () async {
-                      final confirmed =
-                          await _showLoadConfirmation(context);
-                      if (confirmed == true && context.mounted) {
-                        ref
-                            .read(loadingModelsProvider.notifier)
-                            .loadModel(model.id);
-                      }
-                    },
-                    icon: const Icon(Icons.play_arrow),
-                    tooltip: 'Load model',
-                  ),
+            ? IconButton(
+                onPressed: () async {
+                  FocusScope.of(context).unfocus();
+                  final confirmed = await _showUnloadConfirmation(context);
+                  if (confirmed == true && context.mounted) {
+                    ref
+                        .read(loadingModelsProvider.notifier)
+                        .unloadModel(model.id);
+                  }
+                },
+                icon: const Icon(Icons.stop_circle_outlined),
+                tooltip: 'Unload model',
+                color: theme.colorScheme.error,
+              )
+            : IconButton(
+                onPressed: () async {
+                  FocusScope.of(context).unfocus();
+                  final confirmed = await _showLoadConfirmation(context);
+                  if (confirmed == true && context.mounted) {
+                    ref
+                        .read(loadingModelsProvider.notifier)
+                        .loadModel(model.id);
+                  }
+                },
+                icon: const Icon(Icons.play_arrow),
+                tooltip: 'Load model',
+              ),
       ),
     );
   }

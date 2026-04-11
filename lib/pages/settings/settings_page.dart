@@ -361,6 +361,7 @@ class _SettingsContent extends ConsumerWidget {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
+            autofocus: true,
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(context).colorScheme.error,
             ),
@@ -384,6 +385,16 @@ class _SettingsContent extends ConsumerWidget {
     final urlController = TextEditingController(
       text: initialUrl ?? 'http://localhost:8020/api/v1',
     );
+    void submitProfile(BuildContext dialogContext) {
+      if (nameController.text.trim().isEmpty) return;
+      Navigator.pop(
+        dialogContext,
+        _ProfileDialogResult(
+          name: nameController.text.trim(),
+          url: urlController.text.trim(),
+        ),
+      );
+    }
 
     return showDialog<_ProfileDialogResult>(
       context: context,
@@ -400,6 +411,7 @@ class _SettingsContent extends ConsumerWidget {
                 border: OutlineInputBorder(),
               ),
               autofocus: true,
+              onSubmitted: (_) => submitProfile(context),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -409,6 +421,7 @@ class _SettingsContent extends ConsumerWidget {
                 hintText: 'http://host:port/api/v1',
                 border: OutlineInputBorder(),
               ),
+              onSubmitted: (_) => submitProfile(context),
             ),
           ],
         ),
@@ -418,16 +431,7 @@ class _SettingsContent extends ConsumerWidget {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () {
-              if (nameController.text.trim().isEmpty) return;
-              Navigator.pop(
-                context,
-                _ProfileDialogResult(
-                  name: nameController.text.trim(),
-                  url: urlController.text.trim(),
-                ),
-              );
-            },
+            onPressed: () => submitProfile(context),
             child: const Text('Save'),
           ),
         ],

@@ -45,8 +45,9 @@ class _ConfigureLoadDialogState extends State<_ConfigureLoadDialog> {
     );
 
     final stored = opts['llamacpp_backend']?.toString();
-    _llamacppBackend =
-        (stored != null && _llamacppBackends.contains(stored)) ? stored : null;
+    _llamacppBackend = (stored != null && _llamacppBackends.contains(stored))
+        ? stored
+        : null;
   }
 
   @override
@@ -141,9 +142,7 @@ class _ConfigureLoadDialogState extends State<_ConfigureLoadDialog> {
                 value: _saveOptions,
                 onChanged: (v) => setState(() => _saveOptions = v ?? false),
                 title: const Text('Save options'),
-                subtitle: const Text(
-                  'Persist these settings for future loads',
-                ),
+                subtitle: const Text('Persist these settings for future loads'),
                 contentPadding: EdgeInsets.zero,
                 controlAffinity: ListTileControlAffinity.leading,
               ),
@@ -160,6 +159,7 @@ class _ConfigureLoadDialogState extends State<_ConfigureLoadDialog> {
           onPressed: () => Navigator.of(context).pop(_buildOptions()),
           icon: const Icon(Icons.play_arrow),
           label: const Text('Configure & Load'),
+          autofocus: true,
         ),
       ],
     );
