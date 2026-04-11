@@ -74,15 +74,12 @@ set "APK_COUNT=0"
 for %%F in ("%APK_DIR%\*.apk") do (
     set "FILE_BASE=%%~nF"
     set "ABI=universal"
-    set "BUILD_TYPE=release"
+    set "BUILD_TYPE=android"
 
     echo "!FILE_BASE!" | findstr /i /c:"arm64-v8a" >nul && set "ABI=arm64-v8a"
     echo "!FILE_BASE!" | findstr /i /c:"armeabi-v7a" >nul && set "ABI=armeabi-v7a"
     echo "!FILE_BASE!" | findstr /i /c:"x86_64" >nul && set "ABI=x86_64"
     echo "!FILE_BASE!" | findstr /i /c:"x86" >nul && if /i "!ABI!"=="universal" set "ABI=x86"
-
-    echo "!FILE_BASE!" | findstr /i /c:"-debug" >nul && set "BUILD_TYPE=debug"
-    echo "!FILE_BASE!" | findstr /i /c:"-profile" >nul && set "BUILD_TYPE=profile"
 
     set "NEW_NAME=%APP_NAME%-!VERSION_TAG!-!BUILD_TYPE!-!ABI!.apk"
 

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/models/server_profile.dart';
@@ -75,8 +77,9 @@ class _SettingsContent extends ConsumerWidget {
             isOnly: settings.serverProfiles.length == 1,
             onEdit: () => _editProfile(context, ref, profile),
             onDelete: () => _deleteProfile(context, ref, profile),
-            onSetActive: () =>
-                ref.read(settingsProvider.notifier).setActiveProfile(profile.id),
+            onSetActive: () => ref
+                .read(settingsProvider.notifier)
+                .setActiveProfile(profile.id),
           ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -106,10 +109,10 @@ class _SettingsContent extends ConsumerWidget {
           enabled: settings.autoRefreshEnabled,
           onTap: settings.autoRefreshEnabled
               ? () => _editAutoRefreshInterval(
-                    context,
-                    ref,
-                    settings.autoRefreshIntervalSeconds,
-                  )
+                  context,
+                  ref,
+                  settings.autoRefreshIntervalSeconds,
+                )
               : null,
         ),
         const Divider(),
@@ -169,41 +172,123 @@ class _SettingsContent extends ConsumerWidget {
     final info = await PackageInfo.fromPlatform();
     if (!context.mounted) return;
 
+    final dartVersion = Platform.version.split(' ').first;
+    final versionFull = Platform.version;
+    final arch =
+        RegExp(r'on "(.+)"').firstMatch(versionFull)?.group(1) ??
+        Platform.operatingSystem;
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Image.asset(
-                'assets/icon/app_icon.png',
-                width: 80,
-                height: 80,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              info.appName,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'v${info.version}',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+      builder: (context) {
+        final theme = Theme.of(context);
+        final colorScheme = theme.colorScheme;
+        final labelStyle = theme.textTheme.bodySmall?.copyWith(
+          color: colorScheme.onSurfaceVariant,
+        );
+        final valueStyle = theme.textTheme.bodyMedium;
+
+        return AlertDialog(
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 20,
+          ),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Image.asset(
+                    'assets/icon/app_icon.png',
+                    width: 80,
+                    height: 80,
                   ),
+                ),
+                const SizedBox(height: 16),
+                Text(info.appName, style: theme.textTheme.titleLarge),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    'v${info.version}+${info.buildNumber}',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: colorScheme.onPrimaryContainer,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerHighest.withAlpha(100),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      _AboutInfoRow(
+                        icon: Icons.inventory_2_outlined,
+                        label: 'Package',
+                        value: info.packageName,
+                        labelStyle: labelStyle,
+                        valueStyle: valueStyle,
+                      ),
+                      const SizedBox(height: 10),
+                      _AboutInfoRow(
+                        icon: Icons.desktop_windows_outlined,
+                        label: 'Platform',
+                        value:
+                            '${Platform.operatingSystem} ${Platform.operatingSystemVersion}',
+                        labelStyle: labelStyle,
+                        valueStyle: valueStyle,
+                      ),
+                      const SizedBox(height: 10),
+                      _AboutInfoRow(
+                        icon: Icons.memory_outlined,
+                        label: 'Architecture',
+                        value: arch,
+                        labelStyle: labelStyle,
+                        valueStyle: valueStyle,
+                      ),
+                      const SizedBox(height: 10),
+                      _AboutInfoRow(
+                        icon: Icons.developer_board_outlined,
+                        label: 'Processors',
+                        value: '${Platform.numberOfProcessors}',
+                        labelStyle: labelStyle,
+                        valueStyle: valueStyle,
+                      ),
+                      const SizedBox(height: 10),
+                      _AboutInfoRow(
+                        icon: Icons.code_outlined,
+                        label: 'Dart SDK',
+                        value: dartVersion,
+                        labelStyle: labelStyle,
+                        valueStyle: valueStyle,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
             ),
           ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -231,7 +316,9 @@ class _SettingsContent extends ConsumerWidget {
       title: 'Edit Server',
     );
     if (result != null) {
-      await ref.read(settingsProvider.notifier).updateProfile(
+      await ref
+          .read(settingsProvider.notifier)
+          .updateProfile(
             profile.copyWith(name: result.name, baseUrl: result.url),
           );
     }
@@ -455,4 +542,39 @@ class _ProfileDialogResult {
   final String name;
   final String url;
   const _ProfileDialogResult({required this.name, required this.url});
+}
+
+class _AboutInfoRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final TextStyle? labelStyle;
+  final TextStyle? valueStyle;
+
+  const _AboutInfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.labelStyle,
+    this.valueStyle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: labelStyle?.color),
+        const SizedBox(width: 8),
+        SizedBox(width: 90, child: Text(label, style: labelStyle)),
+        Expanded(
+          child: Text(
+            value,
+            style: valueStyle,
+            overflow: TextOverflow.ellipsis,
+            maxLines: 2,
+          ),
+        ),
+      ],
+    );
+  }
 }
