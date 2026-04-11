@@ -53,10 +53,12 @@ class _ModelsPageState extends ConsumerState<ModelsPage> {
     if (_searchQuery.isNotEmpty) {
       final query = _searchQuery.toLowerCase();
       filtered = filtered
-          .where((m) =>
-              m.id.toLowerCase().contains(query) ||
-              m.checkpoint.toLowerCase().contains(query) ||
-              m.labels.any((l) => l.toLowerCase().contains(query)))
+          .where(
+            (m) =>
+                m.id.toLowerCase().contains(query) ||
+                m.checkpoint.toLowerCase().contains(query) ||
+                m.labels.any((l) => l.toLowerCase().contains(query)),
+          )
           .toList();
     }
 
@@ -90,8 +92,9 @@ class _ModelsPageState extends ConsumerState<ModelsPage> {
     Set<String> favouriteIds,
     ThemeData theme,
   ) {
-    final favouriteModels =
-        filtered.where((m) => favouriteIds.contains(m.id)).toList();
+    final favouriteModels = filtered
+        .where((m) => favouriteIds.contains(m.id))
+        .toList();
 
     const listPadding = EdgeInsets.symmetric(horizontal: 16);
 
@@ -109,10 +112,7 @@ class _ModelsPageState extends ConsumerState<ModelsPage> {
                     color: theme.colorScheme.error,
                   ),
                   const SizedBox(width: 6),
-                  Text(
-                    'Favourites',
-                    style: theme.textTheme.titleSmall,
-                  ),
+                  Text('Favourites', style: theme.textTheme.titleSmall),
                   const SizedBox(width: 4),
                   Text(
                     '(${favouriteModels.length})',
@@ -227,9 +227,8 @@ class _ModelsPageState extends ConsumerState<ModelsPage> {
                         FilterChip(
                           label: const Text('All'),
                           selected: _userFilter == UserModelFilter.all,
-                          onSelected: (_) => setState(
-                            () => _userFilter = UserModelFilter.all,
-                          ),
+                          onSelected: (_) =>
+                              setState(() => _userFilter = UserModelFilter.all),
                         ),
                         const SizedBox(width: 8),
                         FilterChip(
@@ -271,37 +270,34 @@ class _ModelsPageState extends ConsumerState<ModelsPage> {
                                 hint: const Text('Quantization'),
                                 isDense: true,
                                 isExpanded: true,
-                                padding: EdgeInsets.symmetric(horizontal: 10,),
+                                padding: EdgeInsets.symmetric(horizontal: 10),
                                 borderRadius: BorderRadius.circular(12),
                                 items: [
                                   const DropdownMenuItem<String?>(
                                     value: null,
                                     child: Text('All quants'),
                                   ),
-                                  ...quantizations.map(
-                                    (q) {
-                                      final level = _parseQLevel(q);
-                                      return DropdownMenuItem<String?>(
-                                        value: q,
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Container(
-                                              width: 12,
-                                              height: 12,
-                                              decoration: BoxDecoration(
-                                                color:
-                                                    quantizationColor(level),
-                                                shape: BoxShape.circle,
-                                              ),
+                                  ...quantizations.map((q) {
+                                    final level = _parseQLevel(q);
+                                    return DropdownMenuItem<String?>(
+                                      value: q,
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Container(
+                                            width: 12,
+                                            height: 12,
+                                            decoration: BoxDecoration(
+                                              color: quantizationColor(level),
+                                              shape: BoxShape.circle,
                                             ),
-                                            const SizedBox(width: 8),
-                                            Text(q),
-                                          ],
-                                        ),
-                                      );
-                                    },
-                                  ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(q),
+                                        ],
+                                      ),
+                                    );
+                                  }),
                                 ],
                                 onChanged: (value) => setState(
                                   () => _selectedQuantization = value,
@@ -367,12 +363,10 @@ class _ModelsPageState extends ConsumerState<ModelsPage> {
               ),
             );
           },
-          error: (err, _) => Expanded(
-            child: Center(child: Text('Error: $err')),
-          ),
-          loading: () => const Expanded(
-            child: Center(child: CircularProgressIndicator()),
-          ),
+          error: (err, _) =>
+              Expanded(child: Center(child: Text('Error: $err'))),
+          loading: () =>
+              const Expanded(child: Center(child: CircularProgressIndicator())),
         ),
       ],
     );

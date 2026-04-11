@@ -5,6 +5,7 @@ class DashboardCard extends StatelessWidget {
   final IconData icon;
   final Widget child;
   final Widget? trailing;
+  final EdgeInsetsGeometry? contentPadding;
 
   const DashboardCard({
     super.key,
@@ -12,6 +13,7 @@ class DashboardCard extends StatelessWidget {
     required this.icon,
     required this.child,
     this.trailing,
+    this.contentPadding,
   });
 
   @override
@@ -48,7 +50,7 @@ class DashboardCard extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: contentPadding ?? const EdgeInsets.all(16),
             child: child,
           ),
         ],

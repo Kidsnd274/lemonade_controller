@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lemonade_controller/models/lemonade_model.dart';
+import 'package:lemonade_controller/models/loaded_model.dart';
 import 'package:lemonade_controller/pages/home/widgets/dashboard_card.dart';
+import 'package:lemonade_controller/pages/model_page/model_page.dart';
 import 'package:lemonade_controller/providers/api_providers.dart';
 import 'package:lemonade_controller/utils/quantization_color.dart';
 
@@ -31,56 +34,27 @@ Future<bool?> _showUnloadConfirmation(
   );
 }
 
+// ---------------------------------------------------------------------------
+// Main card
+// ---------------------------------------------------------------------------
+
 class LoadedModelsCard extends ConsumerWidget {
   const LoadedModelsCard({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final healthAsync = ref.watch(healthInfoProvider);
-    final theme = Theme.of(context);
 
     return DashboardCard(
       title: 'Loaded Models',
       icon: Icons.model_training,
+      contentPadding: const EdgeInsets.all(8),
       child: healthAsync.when(
         data: (health) {
           if (health.allModelsLoaded.isEmpty) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.info_outline,
-                    size: 18,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'No models currently loaded',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            );
+            return const _EmptyState();
           }
-
-          return Column(
-            children: [
-              for (int i = 0; i < health.allModelsLoaded.length; i++) ...[
-                if (i > 0) const Divider(height: 16),
-                _LoadedModelTile(
-                  modelName: health.allModelsLoaded[i].modelName,
-                  checkpoint: health.allModelsLoaded[i].checkpoint,
-                  device: health.allModelsLoaded[i].device,
-                  recipe: health.allModelsLoaded[i].recipe,
-                  type: health.allModelsLoaded[i].type,
-                  recipeOptions: health.allModelsLoaded[i].recipeOptions,
-                ),
-              ],
-            ],
-          );
+          return _LoadedModelsList(models: health.allModelsLoaded);
         },
         error: (err, _) => _ErrorRow(error: err.toString()),
         loading: () => const _LoadingIndicator(),
@@ -89,29 +63,77 @@ class LoadedModelsCard extends ConsumerWidget {
   }
 }
 
-class _LoadedModelTile extends ConsumerWidget {
-  final String modelName;
-  final String checkpoint;
-  final String device;
-  final String recipe;
-  final String type;
-  final Map<String, dynamic> recipeOptions;
+// ---------------------------------------------------------------------------
+// Empty state
+// ---------------------------------------------------------------------------
 
-  const _LoadedModelTile({
-    required this.modelName,
-    required this.checkpoint,
-    required this.device,
-    required this.recipe,
-    required this.type,
-    required this.recipeOptions,
-  });
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Icon(
+            Icons.info_outline,
+            size: 18,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'No models currently loaded',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Model list
+// ---------------------------------------------------------------------------
+
+class _LoadedModelsList extends StatelessWidget {
+  final List<LoadedModel> models;
+
+  const _LoadedModelsList({required this.models});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (int i = 0; i < models.length; i++) ...[
+          if (i > 0) const Divider(height: 16),
+          _LoadedModelTile(loadedModel: models[i]),
+        ],
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Individual model tile
+// ---------------------------------------------------------------------------
+
+class _LoadedModelTile extends ConsumerWidget {
+  final LoadedModel loadedModel;
+
+  const _LoadedModelTile({required this.loadedModel});
 
   static final _qLevelPattern = RegExp(r'Q(\d)');
 
-  String get _displayName => modelName.replaceFirst('user.', '');
+  String get _displayName => loadedModel.modelName.replaceFirst('user.', '');
 
-  String get _quantization =>
-      checkpoint.contains(':') ? checkpoint.split(':').last : '';
+  String get _quantization => loadedModel.checkpoint.contains(':')
+      ? loadedModel.checkpoint.split(':').last
+      : '';
 
   int? get _quantizationLevel {
     final match = _qLevelPattern.firstMatch(_quantization);
@@ -120,136 +142,276 @@ class _LoadedModelTile extends ConsumerWidget {
   }
 
   String get _contextSize {
-    final ctx = recipeOptions['ctx_size'];
+    final ctx = loadedModel.recipeOptions['ctx_size'];
     if (ctx == null) return '';
     final k = (ctx as num).toInt();
     if (k >= 1024) return '${(k / 1024).round()}K ctx';
     return '$k ctx';
   }
 
+  LemonadeModel _resolveModel(WidgetRef ref) {
+    final models = ref.read(modelsProvider).value ?? [];
+    return models.cast<LemonadeModel?>().firstWhere(
+      (m) => m!.id == loadedModel.modelName,
+      orElse: () => LemonadeModel(
+        id: loadedModel.modelName,
+        checkpoint: loadedModel.checkpoint,
+        downloaded: true,
+        labels: [],
+        recipe: loadedModel.recipe,
+        recipeOptions: loadedModel.recipeOptions,
+        suggested: false,
+        ownedBy: '',
+      ),
+    )!;
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final isUnloading = ref.watch(isModelLoadingProvider(modelName));
+    final isUnloading = ref.watch(
+      isModelLoadingProvider(loadedModel.modelName),
+    );
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    margin: const EdgeInsets.only(right: 8),
-                    decoration: const BoxDecoration(
-                      color: Colors.green,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      _displayName,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 6,
-                runSpacing: 4,
-                children: [
-                  if (_quantization.isNotEmpty)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: quantizationColor(_quantizationLevel),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        _quantization,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: quantizationForegroundColor(
-                            _quantizationLevel,
-                          ),
-                        ),
-                      ),
-                    ),
-                  _MiniChip(
-                    label: recipe,
-                    color: theme.colorScheme.primaryContainer,
-                  ),
-                  _MiniChip(
-                    label: device,
-                    color: theme.colorScheme.secondaryContainer,
-                  ),
-                  _MiniChip(
-                    label: type,
-                    color: theme.colorScheme.tertiaryContainer,
-                  ),
-                  if (_contextSize.isNotEmpty)
-                    _MiniChip(
-                      label: _contextSize,
-                      color: theme.colorScheme.surfaceContainerHighest,
-                    ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                checkpoint,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
-            ],
-          ),
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ModelPage(model: _resolveModel(ref)),
         ),
-        const SizedBox(width: 8),
-        if (isUnloading)
-          const SizedBox(
-            width: 40,
-            height: 40,
-            child: Center(
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: _ModelInfo(
+                displayName: _displayName,
+                checkpoint: loadedModel.checkpoint,
+                quantization: _quantization,
+                quantizationLevel: _quantizationLevel,
+                contextSize: _contextSize,
+                recipe: loadedModel.recipe,
+                device: loadedModel.device,
+                type: loadedModel.type,
               ),
             ),
-          )
-        else
-          IconButton(
-            onPressed: () async {
-              final confirmed = await _showUnloadConfirmation(
-                context,
-                _displayName,
-              );
-              if (confirmed == true && context.mounted) {
-                ref.read(loadingModelsProvider.notifier).unloadModel(modelName);
-              }
-            },
-            icon: const Icon(Icons.stop_circle_outlined),
-            tooltip: 'Unload model',
-            color: theme.colorScheme.error,
-            iconSize: 24,
+            const SizedBox(width: 8),
+            _UnloadAction(
+              isUnloading: isUnloading,
+              displayName: _displayName,
+              modelName: loadedModel.modelName,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Model info column (name, chips, checkpoint)
+// ---------------------------------------------------------------------------
+
+class _ModelInfo extends StatelessWidget {
+  final String displayName;
+  final String checkpoint;
+  final String quantization;
+  final int? quantizationLevel;
+  final String contextSize;
+  final String recipe;
+  final String device;
+  final String type;
+
+  const _ModelInfo({
+    required this.displayName,
+    required this.checkpoint,
+    required this.quantization,
+    required this.quantizationLevel,
+    required this.contextSize,
+    required this.recipe,
+    required this.device,
+    required this.type,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _ModelNameRow(displayName: displayName),
+        const SizedBox(height: 6),
+        _ChipsRow(
+          quantization: quantization,
+          quantizationLevel: quantizationLevel,
+          contextSize: contextSize,
+          recipe: recipe,
+          device: device,
+          type: type,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          checkpoint,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          overflow: TextOverflow.ellipsis,
+          maxLines: 1,
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Model name with green dot
+// ---------------------------------------------------------------------------
+
+class _ModelNameRow extends StatelessWidget {
+  final String displayName;
+
+  const _ModelNameRow({required this.displayName});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          margin: const EdgeInsets.only(right: 8),
+          decoration: const BoxDecoration(
+            color: Colors.green,
+            shape: BoxShape.circle,
+          ),
+        ),
+        Expanded(
+          child: Text(
+            displayName,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Chips row (quantization, recipe, device, type, context size)
+// ---------------------------------------------------------------------------
+
+class _ChipsRow extends StatelessWidget {
+  final String quantization;
+  final int? quantizationLevel;
+  final String contextSize;
+  final String recipe;
+  final String device;
+  final String type;
+
+  const _ChipsRow({
+    required this.quantization,
+    required this.quantizationLevel,
+    required this.contextSize,
+    required this.recipe,
+    required this.device,
+    required this.type,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Wrap(
+      spacing: 6,
+      runSpacing: 4,
+      children: [
+        if (quantization.isNotEmpty)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: quantizationColor(quantizationLevel),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              quantization,
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: quantizationForegroundColor(quantizationLevel),
+              ),
+            ),
+          ),
+        _MiniChip(label: recipe, color: theme.colorScheme.primaryContainer),
+        _MiniChip(label: device, color: theme.colorScheme.secondaryContainer),
+        _MiniChip(label: type, color: theme.colorScheme.tertiaryContainer),
+        if (contextSize.isNotEmpty)
+          _MiniChip(
+            label: contextSize,
+            color: theme.colorScheme.surfaceContainerHighest,
           ),
       ],
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Unload action (button or spinner)
+// ---------------------------------------------------------------------------
+
+class _UnloadAction extends ConsumerWidget {
+  final bool isUnloading;
+  final String displayName;
+  final String modelName;
+
+  const _UnloadAction({
+    required this.isUnloading,
+    required this.displayName,
+    required this.modelName,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+
+    if (isUnloading) {
+      return const SizedBox(
+        width: 40,
+        height: 40,
+        child: Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
+    return IconButton(
+      onPressed: () async {
+        final confirmed = await _showUnloadConfirmation(context, displayName);
+        if (confirmed == true && context.mounted) {
+          ref.read(loadingModelsProvider.notifier).unloadModel(modelName);
+        }
+      },
+      icon: const Icon(Icons.stop_circle_outlined),
+      tooltip: 'Unload model',
+      color: theme.colorScheme.error,
+      iconSize: 24,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Shared small widgets
+// ---------------------------------------------------------------------------
 
 class _MiniChip extends StatelessWidget {
   final String label;
