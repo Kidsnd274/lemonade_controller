@@ -145,3 +145,4 @@ coverage/
 
 # Inno setup output
 windows/setup/output
+dist

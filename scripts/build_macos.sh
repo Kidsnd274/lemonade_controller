@@ -2,7 +2,7 @@
 set -e
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-OUTPUT_DIR="$ROOT_DIR/build/output"
+OUTPUT_DIR="$ROOT_DIR/dist"
 APP_NAME="lemonade-controller"
 APP_BUNDLE="Lemonade Controller.app"
 RELEASE_DIR="$ROOT_DIR/build/macos/Build/Products/Release"

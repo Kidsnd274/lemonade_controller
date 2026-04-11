@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 set "ROOT_DIR=%~dp0.."
-set "OUTPUT_DIR=%ROOT_DIR%\build\output"
+set "OUTPUT_DIR=%ROOT_DIR%\dist"
 
 :: Extract version from pubspec.yaml (strips the +buildnumber suffix)
 for /f "tokens=2 delims= " %%a in ('findstr /b "version:" "%~dp0..\pubspec.yaml"') do (

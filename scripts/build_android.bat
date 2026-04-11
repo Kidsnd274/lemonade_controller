@@ -3,7 +3,7 @@ setlocal EnableExtensions EnableDelayedExpansion
 
 set "ROOT_DIR=%~dp0.."
 set "APK_DIR=%ROOT_DIR%\build\app\outputs\flutter-apk"
-set "OUTPUT_DIR=%ROOT_DIR%\build\output"
+set "OUTPUT_DIR=%ROOT_DIR%\dist"
 set "APP_NAME=lemonade-controller"
 
 if "%~1"=="" (
