@@ -14,4 +14,7 @@ echo === Windows icon (256x256) ===
 echo === macOS icon (1024x1024) ===
 "L:\Program Files\Inkscape\bin\inkscape.exe" --export-type=png --export-background-opacity=0 -w 1024 "%ICON_DIR%\macos\app_icon.svg"
 
+echo === Linux icon (128x128) ===
+"L:\Program Files\Inkscape\bin\inkscape.exe" --export-type=png --export-background-opacity=0 -w 1024 "%ICON_DIR%\linux\assets\app_icon.svg"
+
 echo Done.

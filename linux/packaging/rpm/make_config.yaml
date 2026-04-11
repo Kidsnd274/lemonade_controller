@@ -1,0 +1,23 @@
+# TODO: This file is not done
+
+icon: assets/icon/app_icon.png
+summary: Desktop app for managing AI models on a Lemonade Server
+group: Applications/Development
+vendor: Samuel Tee
+packager: Samuel Tee
+packagerEmail: samuel_tee_gy@hotmail.com
+license: Proprietary
+url: https://example.com
+
+display_name: Lemonade Controller
+
+keywords:
+  - Lemonade Controller
+
+generic_name: API Client
+
+categories:
+  - Development
+  - Utility
+
+startup_notify: true
