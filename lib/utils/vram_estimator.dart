@@ -105,13 +105,14 @@ const defaultCtxSize = 2048;
 
 /// ~65 MB of KV cache per billion parameters per 1 K tokens of context
 /// (FP16 KV). Derived from typical transformer layer/head ratios.
-const _kvMbPerBillionPer1k = 0.065;
+/// Converted to GB: 0.065 MB = 0.065 / 1024 GB
+const _kvGbPerBillionPer1k = 0.065 / 1024;
 
 /// Fixed overhead for CUDA/Vulkan context, activations and scratch buffers.
-const _fixedOverheadGb = 0.5;
+const _fixedOverheadGb = 1.0;
 
 /// Proportional overhead on top of model weights (buffers, compute graphs).
-const _proportionalOverhead = 0.05;
+const _proportionalOverhead = 0.15;
 
 /// Breakdown of a VRAM estimate.
 class VramEstimate {
@@ -154,7 +155,7 @@ VramEstimate? estimateVram({
   final weightMemoryGb = paramsBillions * 1e9 * bpw / 8 / _gib;
 
   // KV cache: ~65 MB per billion params per 1 K tokens (FP16 keys+values).
-  final kvCacheGb = (ctx / 1024.0) * paramsBillions * _kvMbPerBillionPer1k;
+  final kvCacheGb = (ctx / 1024.0) * paramsBillions * _kvGbPerBillionPer1k;
 
   final overheadGb = _fixedOverheadGb + weightMemoryGb * _proportionalOverhead;
 
