@@ -35,6 +35,24 @@ class LemonadeController extends ConsumerWidget {
         theme: lightTheme,
         darkTheme: darkTheme,
         themeMode: settings.themeMode,
+        builder: (context, child) {
+          final scale = settings.uiScale;
+          if (scale == 1.0) return child!;
+          final mq = MediaQuery.of(context);
+          final scaledSize = mq.size / scale;
+          return MediaQuery(
+            data: mq.copyWith(size: scaledSize),
+            child: FittedBox(
+              fit: BoxFit.contain,
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: scaledSize.width,
+                height: scaledSize.height,
+                child: child,
+              ),
+            ),
+          );
+        },
         home: const MainPage(),
       ),
     );

@@ -8,6 +8,7 @@ class AppSettings {
   static const defaultAutoRefreshIntervalSeconds = 60;
 
   final ThemeMode themeMode;
+  final double uiScale;
   final bool autoRefreshEnabled;
   final int autoRefreshIntervalSeconds;
   final List<ServerProfile> serverProfiles;
@@ -16,6 +17,7 @@ class AppSettings {
 
   const AppSettings({
     this.themeMode = ThemeMode.system,
+    this.uiScale = 1.0,
     this.autoRefreshEnabled = false,
     this.autoRefreshIntervalSeconds = defaultAutoRefreshIntervalSeconds,
     this.serverProfiles = const [],
@@ -35,6 +37,7 @@ class AppSettings {
 
   AppSettings copyWith({
     ThemeMode? themeMode,
+    double? uiScale,
     bool? autoRefreshEnabled,
     int? autoRefreshIntervalSeconds,
     List<ServerProfile>? serverProfiles,
@@ -43,6 +46,7 @@ class AppSettings {
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
+      uiScale: uiScale ?? this.uiScale,
       autoRefreshEnabled: autoRefreshEnabled ?? this.autoRefreshEnabled,
       autoRefreshIntervalSeconds:
           autoRefreshIntervalSeconds ?? this.autoRefreshIntervalSeconds,
@@ -57,6 +61,7 @@ class AppSettings {
       identical(this, other) ||
       other is AppSettings &&
           themeMode == other.themeMode &&
+          uiScale == other.uiScale &&
           autoRefreshEnabled == other.autoRefreshEnabled &&
           autoRefreshIntervalSeconds == other.autoRefreshIntervalSeconds &&
           activeProfileId == other.activeProfileId &&
@@ -82,6 +87,7 @@ class AppSettings {
   @override
   int get hashCode => Object.hash(
         themeMode,
+        uiScale,
         autoRefreshEnabled,
         autoRefreshIntervalSeconds,
         activeProfileId,
@@ -98,6 +104,7 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
   static const _keyServerProfiles = 'server_profiles';
   static const _keyActiveProfileId = 'active_profile_id';
   static const _keyFavouriteModelIds = 'favourite_model_ids';
+  static const _keyUiScale = 'ui_scale';
 
   // Legacy key for migration
   static const _keyBaseUrl = 'base_url';
@@ -136,6 +143,7 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
         (m) => m.name == prefs.getString(_keyThemeMode),
         orElse: () => ThemeMode.system,
       ),
+      uiScale: prefs.getDouble(_keyUiScale) ?? 1.0,
       autoRefreshEnabled: prefs.getBool(_keyAutoRefreshEnabled) ?? false,
       autoRefreshIntervalSeconds:
           prefs.getInt(_keyAutoRefreshIntervalSeconds) ??
@@ -156,6 +164,7 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
     final prefs = await SharedPreferences.getInstance();
     await Future.wait([
       prefs.setString(_keyThemeMode, next.themeMode.name),
+      prefs.setDouble(_keyUiScale, next.uiScale),
       prefs.setBool(_keyAutoRefreshEnabled, next.autoRefreshEnabled),
       prefs.setInt(
         _keyAutoRefreshIntervalSeconds,

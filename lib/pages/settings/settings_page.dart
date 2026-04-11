@@ -61,6 +61,26 @@ class _SettingsContent extends ConsumerWidget {
             },
           ),
         ),
+        ListTile(
+          leading: const Icon(Icons.zoom_in_outlined),
+          title: const Text('UI Scale'),
+          subtitle: Text('${(settings.uiScale * 100).round()}%'),
+          trailing: SizedBox(
+            width: 200,
+            child: Slider(
+              value: settings.uiScale,
+              min: 0.75,
+              max: 1.25,
+              divisions: 10,
+              label: '${(settings.uiScale * 100).round()}%',
+              onChanged: (value) {
+                ref
+                    .read(settingsProvider.notifier)
+                    .modify((s) => s.copyWith(uiScale: value));
+              },
+            ),
+          ),
+        ),
         const Divider(),
         _SectionHeader(title: 'Server Profiles'),
         ListTile(
