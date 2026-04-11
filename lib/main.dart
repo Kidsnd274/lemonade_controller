@@ -3,10 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/pages/main_page.dart';
 import 'package:lemonade_controller/services/settings_service.dart';
 import 'package:lemonade_controller/theme/theme_def.dart';
+import 'package:lemonade_controller/utils/vram_estimator.dart';
 import 'package:logger/logger.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   Logger.level = Level.debug;
+  await loadParamOverrides();
   runApp(ProviderScope(child: LemonadeController()));
 }
 

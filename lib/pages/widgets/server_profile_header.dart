@@ -34,16 +34,12 @@ class ServerProfileHeader extends ConsumerWidget {
           children: [
             Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    Icons.terminal_rounded,
-                    size: 20,
-                    color: colorScheme.onPrimaryContainer,
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.asset(
+                    'assets/icon/app_icon.png',
+                    width: 32,
+                    height: 32,
                   ),
                 ),
                 const SizedBox(width: 12),

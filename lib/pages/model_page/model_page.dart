@@ -4,55 +4,7 @@ import 'package:lemonade_controller/models/lemonade_model.dart';
 import 'package:lemonade_controller/pages/model_page/configure_load_dialog.dart';
 import 'package:lemonade_controller/providers/api_providers.dart';
 import 'package:lemonade_controller/utils/quantization_color.dart';
-
-/// Approximate bits-per-weight for common GGUF quantization formats.
-const _quantizationBitsPerWeight = <String, double>{
-  'F32': 32.0,
-  'F16': 16.0,
-  'BF16': 16.0,
-  'Q8_0': 8.5,
-  'Q6_K': 6.56,
-  'Q5_K_M': 5.69,
-  'Q5_K_S': 5.54,
-  'Q5_0': 5.54,
-  'Q4_K_M': 4.85,
-  'Q4_K_S': 4.59,
-  'Q4_0': 4.55,
-  'Q3_K_L': 3.91,
-  'Q3_K_M': 3.91,
-  'Q3_K_S': 3.50,
-  'Q2_K': 3.35,
-  'IQ4_XS': 4.25,
-  'IQ3_XXS': 3.06,
-  'IQ2_XXS': 2.06,
-};
-
-/// Tries to extract a parameter count (in billions) from a model name or
-/// checkpoint string. Looks for patterns like "7b", "0.5B", "72b", etc.
-double? _extractParamsBillions(String text) {
-  final match = RegExp(
-    r'(?:^|[-_./])(\d+(?:\.\d+)?)[bB](?:[-_.]|$)',
-  ).firstMatch(text);
-  return match != null ? double.tryParse(match.group(1)!) : null;
-}
-
-/// Rough VRAM estimate in GB based on parameter count and quantization.
-/// Adds ~15 % overhead for KV cache, computation buffers, etc.
-double? _estimateVramGb(double paramsBillions, String quantization) {
-  final bpw = _quantizationBitsPerWeight[quantization.toUpperCase()];
-  if (bpw == null) return null;
-  final weightBytes = paramsBillions * 1e9 * bpw / 8;
-  return weightBytes * 1.15 / (1024 * 1024 * 1024);
-}
-
-String _formatFileSize(double bytes) {
-  if (bytes < 1024) return '${bytes.toInt()} B';
-  if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-  if (bytes < 1024 * 1024 * 1024) {
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-  }
-  return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
-}
+import 'package:lemonade_controller/utils/vram_estimator.dart';
 
 class ModelPage extends ConsumerWidget {
   final LemonadeModel model;
@@ -85,6 +37,8 @@ class ModelPage extends ConsumerWidget {
             ),
             const SizedBox(height: 32),
             _ModelDetailsCard(model: model),
+            const SizedBox(height: 20),
+            _VramEstimateCard(model: model),
             const SizedBox(height: 20),
             _RecipeOptionsCard(model: model),
           ],
@@ -472,11 +426,8 @@ class _ModelDetailsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final paramsBillions =
-        _extractParamsBillions(model.id) ??
-        _extractParamsBillions(model.checkpoint.split(':').first);
-    final vramEstimate = paramsBillions != null
-        ? _estimateVramGb(paramsBillions, model.quantization)
-        : null;
+        extractParamsBillions(model.id) ??
+        extractParamsBillions(model.checkpoint.split(':').first);
 
     return Card(
       elevation: 0,
@@ -511,15 +462,10 @@ class _ModelDetailsCard extends StatelessWidget {
             _DetailRow(label: 'Quantization', value: model.quantization),
             if (paramsBillions != null)
               _DetailRow(label: 'Parameters', value: '${paramsBillions}B'),
-            if (vramEstimate != null)
-              _DetailRow(
-                label: 'VRAM Estimate',
-                value: '~${vramEstimate.toStringAsFixed(1)} GB',
-              ),
             if (model.size != null)
               _DetailRow(
                 label: 'File Size',
-                value: _formatFileSize(model.size!),
+                value: formatFileSize(model.size!),
               ),
             _DetailRow(
               label: 'Downloaded',
@@ -530,6 +476,235 @@ class _ModelDetailsCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// VRAM estimate card
+// ---------------------------------------------------------------------------
+
+class _VramEstimateCard extends StatelessWidget {
+  final LemonadeModel model;
+
+  const _VramEstimateCard({required this.model});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    final paramsBillions =
+        extractParamsBillions(model.id) ??
+        extractParamsBillions(model.checkpoint.split(':').first);
+
+    if (paramsBillions == null) return const SizedBox.shrink();
+
+    final ctxSize = (model.recipeOptions['ctx_size'] as num?)?.toInt();
+
+    final vram = estimateVram(
+      paramsBillions: paramsBillions,
+      quantization: model.quantization,
+      ctxSize: ctxSize,
+    );
+
+    if (vram == null) return const SizedBox.shrink();
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.memory, size: 20, color: colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Estimated VRAM Usage',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _VramTotalRow(totalGb: vram.totalGb, theme: theme),
+            const SizedBox(height: 16),
+            _VramBreakdownBar(vram: vram, theme: theme),
+            const SizedBox(height: 16),
+            _VramBreakdownLegend(vram: vram, theme: theme),
+            const SizedBox(height: 8),
+            Text(
+              'Estimated at ${vram.ctxSize} token context window',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _VramTotalRow extends StatelessWidget {
+  final double totalGb;
+  final ThemeData theme;
+
+  const _VramTotalRow({required this.totalGb, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        Text(
+          '~${totalGb.toStringAsFixed(1)}',
+          style: theme.textTheme.headlineLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: theme.colorScheme.primary,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          'GB',
+          style: theme.textTheme.titleMedium?.copyWith(
+            color: theme.colorScheme.primary,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _VramBreakdownBar extends StatelessWidget {
+  final VramEstimate vram;
+  final ThemeData theme;
+
+  const _VramBreakdownBar({required this.vram, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    final total = vram.totalGb;
+    if (total <= 0) return const SizedBox.shrink();
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: SizedBox(
+        height: 12,
+        child: Row(
+          children: [
+            Flexible(
+              flex: (vram.weightMemoryGb / total * 1000).round(),
+              child: Container(color: theme.colorScheme.primary),
+            ),
+            Flexible(
+              flex: (vram.kvCacheGb / total * 1000).round(),
+              child: Container(color: theme.colorScheme.tertiary),
+            ),
+            Flexible(
+              flex: (vram.overheadGb / total * 1000).round(),
+              child: Container(
+                color: theme.colorScheme.onSurfaceVariant.withAlpha(80),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _VramBreakdownLegend extends StatelessWidget {
+  final VramEstimate vram;
+  final ThemeData theme;
+
+  const _VramBreakdownLegend({required this.vram, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _LegendItem(
+          color: theme.colorScheme.primary,
+          label: 'Weights',
+          value: '${vram.weightMemoryGb.toStringAsFixed(1)} GB',
+          theme: theme,
+        ),
+        const SizedBox(width: 16),
+        _LegendItem(
+          color: theme.colorScheme.tertiary,
+          label: 'KV Cache',
+          value: '${vram.kvCacheGb.toStringAsFixed(2)} GB',
+          theme: theme,
+        ),
+        const SizedBox(width: 16),
+        _LegendItem(
+          color: theme.colorScheme.onSurfaceVariant.withAlpha(80),
+          label: 'Overhead',
+          value: '${vram.overheadGb.toStringAsFixed(2)} GB',
+          theme: theme,
+        ),
+      ],
+    );
+  }
+}
+
+class _LegendItem extends StatelessWidget {
+  final Color color;
+  final String label;
+  final String value;
+  final ThemeData theme;
+
+  const _LegendItem({
+    required this.color,
+    required this.label,
+    required this.value,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            Text(
+              value,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

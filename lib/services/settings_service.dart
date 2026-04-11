@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/models/model_load_preset.dart';
@@ -37,6 +39,48 @@ class AppSettings {
   }
 
   String get baseUrl => activeProfile.baseUrl;
+
+  Map<String, dynamic> toJson() => {
+        'themeMode': themeMode.name,
+        'uiScale': uiScale,
+        'autoRefreshEnabled': autoRefreshEnabled,
+        'autoRefreshIntervalSeconds': autoRefreshIntervalSeconds,
+        'serverProfiles': serverProfiles.map((p) => p.toJson()).toList(),
+        'activeProfileId': activeProfileId,
+        'favouriteModelIds': favouriteModelIds.toList(),
+        'modelLoadPresets': modelLoadPresets.map((p) => p.toJson()).toList(),
+      };
+
+  factory AppSettings.fromJson(Map<String, dynamic> json) {
+    return AppSettings(
+      themeMode: ThemeMode.values.firstWhere(
+        (m) => m.name == json['themeMode'],
+        orElse: () => ThemeMode.system,
+      ),
+      uiScale: (json['uiScale'] as num?)?.toDouble() ?? 1.0,
+      autoRefreshEnabled: json['autoRefreshEnabled'] as bool? ?? false,
+      autoRefreshIntervalSeconds:
+          json['autoRefreshIntervalSeconds'] as int? ??
+              defaultAutoRefreshIntervalSeconds,
+      serverProfiles: (json['serverProfiles'] as List<dynamic>?)
+              ?.map(
+                (e) => ServerProfile.fromJson(e as Map<String, dynamic>),
+              )
+              .toList() ??
+          [],
+      activeProfileId: json['activeProfileId'] as String? ?? 'default',
+      favouriteModelIds: (json['favouriteModelIds'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toSet() ??
+          {},
+      modelLoadPresets: (json['modelLoadPresets'] as List<dynamic>?)
+              ?.map(
+                (e) => ModelLoadPreset.fromJson(e as Map<String, dynamic>),
+              )
+              .toList() ??
+          [],
+    );
+  }
 
   AppSettings copyWith({
     ThemeMode? themeMode,
@@ -265,6 +309,41 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
       if (!updated.remove(modelId)) updated.add(modelId);
       return s.copyWith(favouriteModelIds: updated);
     });
+  }
+
+  String exportSettings() {
+    final current = state.requireValue;
+    return const JsonEncoder.withIndent('  ').convert(current.toJson());
+  }
+
+  Future<void> importSettings(String jsonString) async {
+    final map = jsonDecode(jsonString) as Map<String, dynamic>;
+    final imported = AppSettings.fromJson(map);
+
+    final prefs = await SharedPreferences.getInstance();
+    await Future.wait([
+      prefs.setString(_keyThemeMode, imported.themeMode.name),
+      prefs.setDouble(_keyUiScale, imported.uiScale),
+      prefs.setBool(_keyAutoRefreshEnabled, imported.autoRefreshEnabled),
+      prefs.setInt(
+        _keyAutoRefreshIntervalSeconds,
+        imported.autoRefreshIntervalSeconds,
+      ),
+      prefs.setString(
+        _keyServerProfiles,
+        ServerProfile.encodeList(imported.serverProfiles),
+      ),
+      prefs.setString(_keyActiveProfileId, imported.activeProfileId),
+      prefs.setStringList(
+        _keyFavouriteModelIds,
+        imported.favouriteModelIds.toList(),
+      ),
+      prefs.setString(
+        _keyModelLoadPresets,
+        ModelLoadPreset.encodeList(imported.modelLoadPresets),
+      ),
+    ]);
+    state = AsyncData(imported);
   }
 
   Future<void> reset() async {

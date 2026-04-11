@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/models/server_profile.dart';
@@ -136,6 +137,20 @@ class _SettingsContent extends ConsumerWidget {
               : null,
         ),
         const Divider(),
+        _SectionHeader(title: 'Data'),
+        ListTile(
+          leading: const Icon(Icons.upload_outlined),
+          title: const Text('Export Settings'),
+          subtitle: const Text('Save all settings to a JSON file'),
+          onTap: () => _exportSettings(context, ref),
+        ),
+        ListTile(
+          leading: const Icon(Icons.download_outlined),
+          title: const Text('Import Settings'),
+          subtitle: const Text('Load settings from a JSON file'),
+          onTap: () => _importSettings(context, ref),
+        ),
+        const Divider(),
         ListTile(
           leading: const Icon(Icons.info_outline),
           title: const Text('About'),
@@ -157,6 +172,73 @@ class _SettingsContent extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  Future<void> _exportSettings(BuildContext context, WidgetRef ref) async {
+    try {
+      final json = ref.read(settingsProvider.notifier).exportSettings();
+      final result = await FilePicker.platform.saveFile(
+        dialogTitle: 'Export Settings',
+        fileName: 'lemonade_settings.json',
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+      if (result == null) return;
+      await File(result).writeAsString(json);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Settings exported successfully')),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Export failed: $e')),
+      );
+    }
+  }
+
+  Future<void> _importSettings(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Import Settings'),
+        content: const Text(
+          'This will overwrite all current settings with the imported ones. '
+          'Are you sure you want to continue?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        dialogTitle: 'Import Settings',
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+      if (result == null || result.files.single.path == null) return;
+      final json = await File(result.files.single.path!).readAsString();
+      await ref.read(settingsProvider.notifier).importSettings(json);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Settings imported successfully')),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Import failed: $e')),
+      );
+    }
   }
 
   Future<void> _resetSettings(BuildContext context, WidgetRef ref) async {

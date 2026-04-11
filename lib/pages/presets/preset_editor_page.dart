@@ -6,6 +6,7 @@ import 'package:lemonade_controller/models/model_load_preset.dart';
 import 'package:lemonade_controller/providers/api_providers.dart';
 import 'package:lemonade_controller/services/settings_service.dart';
 import 'package:lemonade_controller/utils/quantization_color.dart';
+import 'package:lemonade_controller/utils/vram_estimator.dart';
 
 const _llamacppBackends = ['vulkan', 'rocm', 'metal', 'cpu'];
 
@@ -160,6 +161,10 @@ class _PresetEditorPageState extends ConsumerState<PresetEditorPage> {
               ),
             ],
           ),
+          if (_entries.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _EditorVramSummary(entries: _entries),
+          ],
           const SizedBox(height: 12),
           if (_entries.isEmpty)
             Card(
@@ -734,6 +739,123 @@ class _PickerModelTile extends StatelessWidget {
               ),
             )
           : null,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// VRAM summary for the editor
+// ---------------------------------------------------------------------------
+
+class _EditorVramSummary extends ConsumerWidget {
+  final List<LemonadeLoadOptionsModel> entries;
+  const _EditorVramSummary({required this.entries});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final allModels = ref.watch(modelsProvider).value;
+
+    double totalGb = 0;
+    int estimated = 0;
+    final perModel = <String, double>{};
+
+    for (final entry in entries) {
+      VramEstimate? vram;
+
+      if (allModels != null) {
+        final model =
+            allModels.where((m) => m.id == entry.modelName).firstOrNull;
+        if (model != null) {
+          vram = estimateVramForModel(model, ctxSize: entry.ctxSize);
+        }
+      }
+
+      vram ??= estimateVramFromModelName(
+        entry.modelName,
+        ctxSize: entry.ctxSize,
+      );
+
+      if (vram != null) {
+        totalGb += vram.totalGb;
+        estimated++;
+        perModel[entry.modelName] = vram.totalGb;
+      }
+    }
+
+    if (estimated == 0) return const SizedBox.shrink();
+
+    final allEstimated = estimated == entries.length;
+
+    return Card(
+      elevation: 0,
+      color: colorScheme.primaryContainer.withAlpha(40),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: colorScheme.primary.withAlpha(60)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.memory, size: 18, color: colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Estimated Total VRAM',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '~${totalGb.toStringAsFixed(1)} GB',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.primary,
+                  ),
+                ),
+              ],
+            ),
+            if (!allEstimated)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  '$estimated of ${entries.length} models estimated',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            if (perModel.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              ...perModel.entries.map((e) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            e.key,
+                            style: theme.textTheme.bodySmall,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Text(
+                          '~${e.value.toStringAsFixed(1)} GB',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

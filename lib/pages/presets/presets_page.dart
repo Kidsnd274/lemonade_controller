@@ -4,6 +4,7 @@ import 'package:lemonade_controller/models/model_load_preset.dart';
 import 'package:lemonade_controller/pages/presets/preset_editor_page.dart';
 import 'package:lemonade_controller/providers/api_providers.dart';
 import 'package:lemonade_controller/services/settings_service.dart';
+import 'package:lemonade_controller/utils/vram_estimator.dart';
 
 class PresetsPage extends ConsumerWidget {
   const PresetsPage({super.key});
@@ -162,6 +163,7 @@ class _PresetCard extends ConsumerWidget {
                 }).toList(),
               ),
             ],
+            _PresetVramSummary(preset: preset),
             const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
@@ -254,5 +256,75 @@ class _PresetCard extends ConsumerWidget {
     if (confirmed == true) {
       await ref.read(settingsProvider.notifier).removePreset(preset.id);
     }
+  }
+}
+
+class _PresetVramSummary extends ConsumerWidget {
+  final ModelLoadPreset preset;
+  const _PresetVramSummary({required this.preset});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (preset.entries.isEmpty) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    final allModels = ref.watch(modelsProvider).value;
+    double totalGb = 0;
+    int estimated = 0;
+
+    for (final entry in preset.entries) {
+      VramEstimate? vram;
+
+      if (allModels != null) {
+        final model = allModels.where((m) => m.id == entry.modelName).firstOrNull;
+        if (model != null) {
+          vram = estimateVramForModel(model, ctxSize: entry.ctxSize);
+        }
+      }
+
+      vram ??= estimateVramFromModelName(
+        entry.modelName,
+        ctxSize: entry.ctxSize,
+      );
+
+      if (vram != null) {
+        totalGb += vram.totalGb;
+        estimated++;
+      }
+    }
+
+    if (estimated == 0) return const SizedBox.shrink();
+
+    final allEstimated = estimated == preset.entries.length;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Row(
+        children: [
+          Icon(
+            Icons.memory,
+            size: 16,
+            color: theme.colorScheme.primary,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '~${totalGb.toStringAsFixed(1)} GB VRAM',
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+          if (!allEstimated) ...[
+            const SizedBox(width: 4),
+            Text(
+              '($estimated of ${preset.entries.length} models)',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }
