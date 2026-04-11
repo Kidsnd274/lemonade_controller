@@ -48,7 +48,7 @@ DisableProgramGroupPage=yes
 ; Uncomment the following line to run in non administrative install mode (install for current user only).
 ;PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
-OutputDir={#SourcePath}\..\..\build\output
+OutputDir={#SourcePath}\..\..\dist
 OutputBaseFilename=lemonade-controller-{#MyAppVersion}-windows-setup
 SetupIconFile={#SourcePath}\..\runner\resources\app_icon.ico
 AppendDefaultDirName=yes

@@ -61,6 +61,6 @@ echo   Build complete!
 echo.
 echo   Output:
 echo     %OUTPUT_DIR%\%ZIP_NAME%
-echo     %OUTPUT_DIR%\lemonade-controller-setup.exe
+echo     %OUTPUT_DIR%\lemonade-controller-%APP_VERSION%-setup.exe
 echo  ============================================
 echo.
