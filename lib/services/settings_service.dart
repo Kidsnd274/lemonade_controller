@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lemonade_controller/models/model_load_preset.dart';
 import 'package:lemonade_controller/models/server_profile.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -14,6 +15,7 @@ class AppSettings {
   final List<ServerProfile> serverProfiles;
   final String activeProfileId;
   final Set<String> favouriteModelIds;
+  final List<ModelLoadPreset> modelLoadPresets;
 
   const AppSettings({
     this.themeMode = ThemeMode.system,
@@ -23,6 +25,7 @@ class AppSettings {
     this.serverProfiles = const [],
     this.activeProfileId = 'default',
     this.favouriteModelIds = const {},
+    this.modelLoadPresets = const [],
   });
 
   ServerProfile get activeProfile {
@@ -43,6 +46,7 @@ class AppSettings {
     List<ServerProfile>? serverProfiles,
     String? activeProfileId,
     Set<String>? favouriteModelIds,
+    List<ModelLoadPreset>? modelLoadPresets,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
@@ -53,6 +57,7 @@ class AppSettings {
       serverProfiles: serverProfiles ?? this.serverProfiles,
       activeProfileId: activeProfileId ?? this.activeProfileId,
       favouriteModelIds: favouriteModelIds ?? this.favouriteModelIds,
+      modelLoadPresets: modelLoadPresets ?? this.modelLoadPresets,
     );
   }
 
@@ -66,7 +71,8 @@ class AppSettings {
           autoRefreshIntervalSeconds == other.autoRefreshIntervalSeconds &&
           activeProfileId == other.activeProfileId &&
           _profileListEquals(serverProfiles, other.serverProfiles) &&
-          _setEquals(favouriteModelIds, other.favouriteModelIds);
+          _setEquals(favouriteModelIds, other.favouriteModelIds) &&
+          _presetListEquals(modelLoadPresets, other.modelLoadPresets);
 
   static bool _profileListEquals(
     List<ServerProfile> a,
@@ -84,6 +90,17 @@ class AppSettings {
     return a.containsAll(b);
   }
 
+  static bool _presetListEquals(
+    List<ModelLoadPreset> a,
+    List<ModelLoadPreset> b,
+  ) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
   @override
   int get hashCode => Object.hash(
         themeMode,
@@ -93,6 +110,7 @@ class AppSettings {
         activeProfileId,
         Object.hashAll(serverProfiles),
         Object.hashAll(favouriteModelIds),
+        Object.hashAll(modelLoadPresets),
       );
 }
 
@@ -104,6 +122,7 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
   static const _keyServerProfiles = 'server_profiles';
   static const _keyActiveProfileId = 'active_profile_id';
   static const _keyFavouriteModelIds = 'favourite_model_ids';
+  static const _keyModelLoadPresets = 'model_load_presets';
   static const _keyUiScale = 'ui_scale';
 
   // Legacy key for migration
@@ -138,6 +157,10 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
     final favouriteIds =
         prefs.getStringList(_keyFavouriteModelIds)?.toSet() ?? {};
 
+    final presetsJson = prefs.getString(_keyModelLoadPresets);
+    final presets =
+        presetsJson != null ? ModelLoadPreset.decodeList(presetsJson) : <ModelLoadPreset>[];
+
     return AppSettings(
       themeMode: ThemeMode.values.firstWhere(
         (m) => m.name == prefs.getString(_keyThemeMode),
@@ -151,6 +174,7 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
       serverProfiles: profiles,
       activeProfileId: activeId,
       favouriteModelIds: favouriteIds,
+      modelLoadPresets: presets,
     );
   }
 
@@ -178,6 +202,10 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
       prefs.setStringList(
         _keyFavouriteModelIds,
         next.favouriteModelIds.toList(),
+      ),
+      prefs.setString(
+        _keyModelLoadPresets,
+        ModelLoadPreset.encodeList(next.modelLoadPresets),
       ),
     ]);
     state = AsyncData(next);
@@ -208,6 +236,27 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
           s.activeProfileId == profileId ? remaining.first.id : s.activeProfileId;
       return s.copyWith(serverProfiles: remaining, activeProfileId: newActiveId);
     });
+  }
+
+  Future<void> addPreset(ModelLoadPreset preset) async {
+    await modify(
+      (s) => s.copyWith(modelLoadPresets: [...s.modelLoadPresets, preset]),
+    );
+  }
+
+  Future<void> updatePreset(ModelLoadPreset updated) async {
+    await modify((s) => s.copyWith(
+          modelLoadPresets: s.modelLoadPresets
+              .map((p) => p.id == updated.id ? updated : p)
+              .toList(),
+        ));
+  }
+
+  Future<void> removePreset(String presetId) async {
+    await modify((s) => s.copyWith(
+          modelLoadPresets:
+              s.modelLoadPresets.where((p) => p.id != presetId).toList(),
+        ));
   }
 
   Future<void> toggleFavourite(String modelId) async {

@@ -1,11 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
-import 'dart:async';
 import 'package:lemonade_controller/models/health_info.dart';
 import 'package:lemonade_controller/models/lemonade_load_options.dart';
 import 'package:lemonade_controller/models/lemonade_model.dart';
 import 'package:lemonade_controller/models/lemonade_unload_options.dart';
 import 'package:lemonade_controller/models/loaded_model.dart';
+import 'package:lemonade_controller/models/model_load_preset.dart';
 import 'package:lemonade_controller/models/system_info.dart';
 import 'package:lemonade_controller/providers/service_providers.dart';
 import 'package:lemonade_controller/services/api_client.dart';
@@ -68,26 +68,14 @@ final loadedModelsProvider =
 
 class LoadedModelsNotifier extends StateNotifier<Set<LoadedModel>> {
   final LemonadeApiClient _apiClient;
-  Timer? _timer;
 
   LoadedModelsNotifier(this._apiClient) : super({}) {
-    updateState(); // Temporary
-    // _startPeriodicRefresh();
+    updateState();
   }
 
   Future updateState() async {
     final loadedList = await _apiClient.getLoadedModels();
     state = loadedList.toSet();
-  }
-
-  void _startPeriodicRefresh() {
-    _timer = Timer.periodic(const Duration(seconds: 10), (_) => updateState());
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
   }
 }
 
@@ -114,4 +102,46 @@ final healthInfoProvider = FutureProvider<HealthInfo>((ref) async {
   final api = ref.watch(apiClientProvider);
   final json = await api.getHealth();
   return HealthInfo.fromJson(json);
+});
+
+final presetLoadingProvider =
+    StateNotifierProvider<PresetLoadingNotifier, Set<String>>((ref) {
+      return PresetLoadingNotifier(ref);
+    });
+
+class PresetLoadingNotifier extends StateNotifier<Set<String>> {
+  final Ref _ref;
+
+  PresetLoadingNotifier(this._ref) : super({});
+
+  /// Loads all models in a preset sequentially via [LoadingModelsNotifier]
+  /// so each model appears in the per-model loading state.
+  /// Returns the number of models that loaded successfully.
+  Future<int> loadPreset(ModelLoadPreset preset) async {
+    state = {...state, preset.id};
+    try {
+      final loader = _ref.read(loadingModelsProvider.notifier);
+      final results = await Future.wait(
+        preset.entries.map((entry) async {
+          final opts = entry.copyWith(saveOptions: null);
+          try {
+            return await loader.loadModel(entry.modelName, options: opts);
+          } catch (_) {
+            // Continue loading other models even if one fails.
+            return false;
+          }
+        }),
+      );
+      return results.where((success) => success).length;
+    } finally {
+      state = {...state}..remove(preset.id);
+    }
+  }
+}
+
+final isPresetLoadingProvider =
+    Provider.family<bool, String>((ref, presetId) {
+  return ref.watch(
+    presetLoadingProvider.select((state) => state.contains(presetId)),
+  );
 });

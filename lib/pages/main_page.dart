@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/pages/home/home_page.dart';
 import 'package:lemonade_controller/pages/models_list/models_page.dart';
+import 'package:lemonade_controller/pages/presets/presets_page.dart';
 import 'package:lemonade_controller/pages/widgets/nav_item.dart';
 import 'package:lemonade_controller/pages/settings/settings_page.dart';
 import 'package:lemonade_controller/pages/widgets/drawer_content.dart';
@@ -16,14 +17,14 @@ ScreenSize screenSizeOf(BuildContext context) {
   return ScreenSize.expanded;
 }
 
-class MainPage extends StatefulWidget {
+class MainPage extends ConsumerStatefulWidget {
   const MainPage({super.key});
 
   @override
-  State<MainPage> createState() => _MainPageState();
+  ConsumerState<MainPage> createState() => _MainPageState();
 }
 
-class _MainPageState extends State<MainPage> {
+class _MainPageState extends ConsumerState<MainPage> {
   int _selectedIndex = 0;
 
   static final List<NavItem> _navItems = [
@@ -38,6 +39,12 @@ class _MainPageState extends State<MainPage> {
       icon: Icons.view_list_outlined,
       selectedIcon: Icons.view_list,
       page: ModelsPage(),
+    ),
+    NavItem(
+      title: 'Presets',
+      icon: Icons.playlist_add_check_outlined,
+      selectedIcon: Icons.playlist_add_check,
+      page: const PresetsPage(),
     ),
     NavItem(
       title: 'Settings',
@@ -56,6 +63,8 @@ class _MainPageState extends State<MainPage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(autoRefreshProvider);
+
     final screenSize = screenSizeOf(context);
     final content = KeyedSubtree(
       key: _pageKeys[_selectedIndex],
