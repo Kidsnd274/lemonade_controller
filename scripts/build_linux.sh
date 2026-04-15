@@ -39,49 +39,91 @@ ARCH="$(dpkg --print-architecture 2>/dev/null || uname -m)"
 
 echo ""
 echo " ============================================"
-echo "  Lemonade Controller - Linux DEB Build"
+echo "  Lemonade Controller - Linux Build"
 echo "  Version: $APP_VERSION (+$BUILD_NUMBER)"
 echo "  Arch:    $ARCH"
 echo " ============================================"
 echo ""
 
-echo " [1/2] Packaging Debian package..."
+echo " [1/4] Building Flutter app..."
 echo " --------------------------------------------"
 (
     cd "$ROOT_DIR"
-    "$DIST_CMD" release --name release
+    flutter build linux --release
 )
-echo " [ok]  Packaging complete."
+echo " [ok]  Flutter build complete."
 echo ""
 
-echo " [2/2] Copying package to release folder..."
+echo " [2/4] Updating installed_size in deb config..."
 echo " --------------------------------------------"
-
-DEB_FILE="$(find "$ROOT_DIR/build/dist" -type f -name '*.deb' | sort | tail -n 1 || true)"
-
-if [ -z "$DEB_FILE" ]; then
-    echo " [x] No .deb file found under $ROOT_DIR/build/dist"
-    echo "     Found these instead:"
-    find "$ROOT_DIR/build" -type f -name '*.deb' || true
+INSTALLED_SIZE="$(du -sk "$ROOT_DIR/build/linux/x64/release/bundle" | cut -f1)"
+DEB_CONFIG="$ROOT_DIR/linux/packaging/deb/make_config.yaml"
+if [ -z "$INSTALLED_SIZE" ]; then
+    echo " [x] Could not calculate installed size"
     exit 1
 fi
+sed -i "s/^installed_size:.*/installed_size: $INSTALLED_SIZE/" "$DEB_CONFIG"
+echo " [ok]  installed_size: $INSTALLED_SIZE"
+echo ""
 
+echo " [3/4] Packaging Debian package..."
+echo " --------------------------------------------"
+(
+    cd "$ROOT_DIR"
+    "$DIST_CMD" package --platform linux --targets deb
+)
+echo " [ok]  DEB packaging complete."
+echo ""
+
+echo " [4/4] Packaging RPM package..."
+echo " --------------------------------------------"
+(
+    cd "$ROOT_DIR"
+    "$DIST_CMD" package --platform linux --targets rpm
+)
+echo " [ok]  RPM packaging complete."
+echo ""
+
+echo " Copying packages to release folder..."
+echo " --------------------------------------------"
 mkdir -p "$OUTPUT_DIR"
 
-FINAL_NAME="$APP_NAME-$VERSION_TAG-linux-$ARCH.deb"
-cp -f "$DEB_FILE" "$OUTPUT_DIR/$FINAL_NAME"
+DEB_FILE="$(find "$ROOT_DIR/build/dist" -type f -name '*.deb' | sort | tail -n 1 || true)"
+RPM_FILE="$(find "$ROOT_DIR/build/dist" -type f -name '*.rpm' | sort | tail -n 1 || true)"
 
-echo " [ok]  Source: $(basename "$DEB_FILE")"
-echo " [ok]  Output: $FINAL_NAME"
+COPIED=0
+
+if [ -n "$DEB_FILE" ]; then
+    FINAL_DEB="$APP_NAME-$VERSION_TAG-linux-$ARCH.deb"
+    cp -f "$DEB_FILE" "$OUTPUT_DIR/$FINAL_DEB"
+    echo " [ok]  $FINAL_DEB"
+    COPIED=$((COPIED + 1))
+else
+    echo " [!]  No .deb file found under $ROOT_DIR/build/dist"
+fi
+
+if [ -n "$RPM_FILE" ]; then
+    FINAL_RPM="$APP_NAME-$VERSION_TAG-linux-$ARCH.rpm"
+    cp -f "$RPM_FILE" "$OUTPUT_DIR/$FINAL_RPM"
+    echo " [ok]  $FINAL_RPM"
+    COPIED=$((COPIED + 1))
+else
+    echo " [!]  No .rpm file found under $ROOT_DIR/build/dist"
+fi
+
 echo ""
-
 echo " ============================================"
-echo "  Build complete!"
+echo "  Build complete! $COPIED package(s) output."
 echo ""
 echo "  Output:"
-echo "    $OUTPUT_DIR/$FINAL_NAME"
+for f in "$OUTPUT_DIR/$APP_NAME"-*-linux-*; do
+    [ -e "$f" ] && echo "    $(basename "$f")"
+done
 echo ""
-echo "  Install:"
-echo "    sudo apt install ./$OUTPUT_DIR/$FINAL_NAME"
+echo "  Install (Debian/Ubuntu):"
+echo "    sudo apt install ./$OUTPUT_DIR/$FINAL_DEB"
+echo ""
+echo "  Install (Fedora/RHEL):"
+echo "    sudo dnf install ./$OUTPUT_DIR/$FINAL_RPM"
 echo " ============================================"
 echo ""

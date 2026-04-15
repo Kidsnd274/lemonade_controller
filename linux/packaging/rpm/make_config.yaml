@@ -1,15 +1,12 @@
-# TODO: This file is not done
+display_name: Lemonade Controller
 
-icon: assets/icon/app_icon.png
+icon: linux/assets/app_icon.png
 summary: Desktop app for managing AI models on a Lemonade Server
 group: Applications/Development
 vendor: Samuel Tee
 packager: Samuel Tee
 packagerEmail: samuel_tee_gy@hotmail.com
-license: Proprietary
-url: https://example.com
-
-display_name: Lemonade Controller
+url: https://github.com/Kidsnd274/lemonade_controller
 
 keywords:
   - Lemonade Controller
