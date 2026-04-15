@@ -6,6 +6,7 @@ group: Applications/Development
 vendor: Samuel Tee
 packager: Samuel Tee
 packagerEmail: samuel_tee_gy@hotmail.com
+license: GPL-3.0-or-later
 url: https://github.com/Kidsnd274/lemonade_controller
 
 keywords:

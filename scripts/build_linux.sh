@@ -70,7 +70,7 @@ echo " [3/4] Packaging Debian package..."
 echo " --------------------------------------------"
 (
     cd "$ROOT_DIR"
-    "$DIST_CMD" package --platform linux --targets deb
+    "$DIST_CMD" package --platform linux --targets deb --skip-clean
 )
 echo " [ok]  DEB packaging complete."
 echo ""
@@ -79,7 +79,7 @@ echo " [4/4] Packaging RPM package..."
 echo " --------------------------------------------"
 (
     cd "$ROOT_DIR"
-    "$DIST_CMD" package --platform linux --targets rpm
+    "$DIST_CMD" package --platform linux --targets rpm --skip-clean
 )
 echo " [ok]  RPM packaging complete."
 echo ""
