@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/pages/home/home_page.dart';
 import 'package:lemonade_controller/pages/models_list/models_page.dart';
 import 'package:lemonade_controller/pages/presets/presets_page.dart';
+import 'package:lemonade_controller/pages/pull/pull_page.dart';
 import 'package:lemonade_controller/pages/widgets/nav_item.dart';
 import 'package:lemonade_controller/pages/settings/settings_page.dart';
 import 'package:lemonade_controller/pages/widgets/drawer_content.dart';
@@ -39,6 +40,12 @@ class _MainPageState extends ConsumerState<MainPage> {
       icon: Icons.view_list_outlined,
       selectedIcon: Icons.view_list,
       page: ModelsPage(),
+    ),
+    NavItem(
+      title: 'Pull',
+      icon: Icons.download_outlined,
+      selectedIcon: Icons.download,
+      page: const PullPage(),
     ),
     NavItem(
       title: 'Presets',

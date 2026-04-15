@@ -6,6 +6,8 @@ import 'package:lemonade_controller/models/lemonade_model.dart';
 import 'package:lemonade_controller/models/lemonade_unload_options.dart';
 import 'package:lemonade_controller/models/loaded_model.dart';
 import 'package:lemonade_controller/models/model_load_preset.dart';
+import 'package:lemonade_controller/models/pull_progress_event.dart';
+import 'package:lemonade_controller/models/pull_request_options.dart';
 import 'package:lemonade_controller/models/system_info.dart';
 import 'package:lemonade_controller/providers/service_providers.dart';
 import 'package:lemonade_controller/services/api_client.dart';
@@ -52,6 +54,20 @@ class LoadingModelsNotifier extends StateNotifier<Set<String>> {
       final result = await _apiClient.unloadModel(options);
       if (result) {
         await _ref.read(loadedModelsProvider.notifier).updateState();
+      }
+      return result;
+    } finally {
+      state = {...state}..remove(modelId);
+    }
+  }
+
+  Future<bool> deleteModel(String modelId) async {
+    state = {...state, modelId};
+    try {
+      final result = await _apiClient.deleteModel(modelId);
+      if (result) {
+        await _ref.read(loadedModelsProvider.notifier).updateState();
+        _ref.invalidate(modelsProvider);
       }
       return result;
     } finally {
@@ -145,3 +161,101 @@ final isPresetLoadingProvider =
     presetLoadingProvider.select((state) => state.contains(presetId)),
   );
 });
+
+// ---------------------------------------------------------------------------
+// Pull (download) progress
+// ---------------------------------------------------------------------------
+
+final pullProgressProvider = StateNotifierProvider<PullProgressNotifier,
+    Map<String, PullProgressEvent>>((ref) {
+  final apiClient = ref.watch(apiClientProvider);
+  return PullProgressNotifier(apiClient, ref);
+});
+
+class PullProgressNotifier
+    extends StateNotifier<Map<String, PullProgressEvent>> {
+  final LemonadeApiClient _apiClient;
+  final Ref _ref;
+  final Map<String, _SpeedTracker> _speedTrackers = {};
+
+  PullProgressNotifier(this._apiClient, this._ref) : super({});
+
+  Future<void> startPull(PullRequestOptions options) async {
+    final modelName = options.modelName;
+
+    _speedTrackers[modelName] = _SpeedTracker();
+    state = {
+      ...state,
+      modelName: const PullProgressEvent(
+        eventType: PullEventType.progress,
+        percent: 0,
+      ),
+    };
+
+    try {
+      await for (final event in _apiClient.pullModel(options)) {
+        if (!mounted) return;
+
+        final enriched = _enrichWithSpeed(modelName, event);
+        state = {...state, modelName: enriched};
+
+        if (event.isComplete) {
+          _speedTrackers.remove(modelName);
+          _ref.invalidate(modelsProvider);
+          await Future.delayed(const Duration(seconds: 3));
+          if (mounted) {
+            state = Map.from(state)..remove(modelName);
+          }
+          return;
+        }
+
+        if (event.isError) {
+          _speedTrackers.remove(modelName);
+          await Future.delayed(const Duration(seconds: 5));
+          if (mounted) {
+            state = Map.from(state)..remove(modelName);
+          }
+          return;
+        }
+      }
+    } catch (_) {
+      _speedTrackers.remove(modelName);
+      if (mounted) {
+        state = Map.from(state)..remove(modelName);
+      }
+    }
+  }
+
+  PullProgressEvent _enrichWithSpeed(String modelName, PullProgressEvent event) {
+    final tracker = _speedTrackers[modelName];
+    if (tracker == null || event.bytesDownloaded == null) return event;
+    final speed = tracker.update(event.bytesDownloaded!);
+    return event.withSpeed(speed);
+  }
+}
+
+class _SpeedTracker {
+  int _prevBytes = 0;
+  DateTime _prevTime = DateTime.now();
+  double _smoothedSpeed = 0;
+
+  /// Returns smoothed speed in bytes/sec using exponential moving average.
+  double? update(int currentBytes) {
+    final now = DateTime.now();
+    final elapsed = now.difference(_prevTime);
+    if (elapsed.inMilliseconds < 200) return _smoothedSpeed > 0 ? _smoothedSpeed : null;
+
+    final deltaBytes = currentBytes - _prevBytes;
+    if (deltaBytes <= 0) return _smoothedSpeed > 0 ? _smoothedSpeed : null;
+
+    final instantSpeed = deltaBytes / (elapsed.inMilliseconds / 1000.0);
+    // Exponential moving average (alpha=0.3) for smoother display
+    _smoothedSpeed = _smoothedSpeed == 0
+        ? instantSpeed
+        : _smoothedSpeed * 0.7 + instantSpeed * 0.3;
+
+    _prevBytes = currentBytes;
+    _prevTime = now;
+    return _smoothedSpeed;
+  }
+}

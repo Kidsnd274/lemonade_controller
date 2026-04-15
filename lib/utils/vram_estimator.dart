@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:lemonade_controller/models/lemonade_model.dart';
 
+export 'package:lemonade_controller/utils/format.dart';
+
 /// Lazily loaded parameter overrides from assets/model_params.json.
 /// Maps lowercase model name substrings to parameter counts in billions.
 Map<String, double>? _paramOverrides;
@@ -86,16 +88,6 @@ double? extractParamsBillions(String text) {
     r'(?:^|[-_./])(\d+(?:\.\d+)?)[bB](?:[-_.]|$)',
   ).firstMatch(text);
   return match != null ? double.tryParse(match.group(1)!) : null;
-}
-
-/// Human-readable file size string from a byte count.
-String formatFileSize(double bytes) {
-  if (bytes < 1024) return '${bytes.toInt()} B';
-  if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-  if (bytes < 1024 * 1024 * 1024) {
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-  }
-  return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
 }
 
 const _gib = 1024.0 * 1024.0 * 1024.0;

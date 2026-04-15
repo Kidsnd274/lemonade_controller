@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/models/lemonade_model.dart';
 import 'package:lemonade_controller/pages/model_page/configure_load_dialog.dart';
@@ -267,7 +268,7 @@ class _ActionButtons extends ConsumerWidget {
 
         // Delete
         OutlinedButton.icon(
-          onPressed: () => _confirmDelete(context),
+          onPressed: () => _confirmDelete(context, ref),
           icon: Icon(Icons.delete_outline, color: theme.colorScheme.error),
           label: Text(
             'Delete',
@@ -341,7 +342,7 @@ class _ActionButtons extends ConsumerWidget {
     );
   }
 
-  void _confirmDelete(BuildContext context) {
+  void _confirmDelete(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -370,7 +371,7 @@ class _ActionButtons extends ConsumerWidget {
           FilledButton(
             onPressed: () {
               Navigator.pop(ctx);
-              _confirmDeleteFinal(context);
+              _confirmDeleteFinal(context, ref);
             },
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(context).colorScheme.error,
@@ -382,7 +383,7 @@ class _ActionButtons extends ConsumerWidget {
     );
   }
 
-  void _confirmDeleteFinal(BuildContext context) {
+  void _confirmDeleteFinal(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -398,11 +399,33 @@ class _ActionButtons extends ConsumerWidget {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Delete not yet implemented')),
-              );
+              try {
+                final success = await ref
+                    .read(loadingModelsProvider.notifier)
+                    .deleteModel(model.id);
+                if (!context.mounted) return;
+                if (success) {
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Deleted "${model.displayName}" successfully',
+                      ),
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Failed to delete model')),
+                  );
+                }
+              } catch (e) {
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error: $e')),
+                );
+              }
             },
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Delete Permanently'),
@@ -457,9 +480,10 @@ class _ModelDetailsCard extends StatelessWidget {
               ],
             ),
             const Divider(height: 24),
-            _DetailRow(label: 'Checkpoint', value: model.checkpoint),
+            _DetailRow(label: 'Model ID', value: model.id, copyable: true),
+            _DetailRow(label: 'Checkpoint', value: model.checkpoint, copyable: true),
             _DetailRow(label: 'Recipe', value: model.recipe),
-            _DetailRow(label: 'Quantization', value: model.quantization),
+            _DetailRow(label: 'Quantization', value: model.quantization, copyable: true),
             if (paramsBillions != null)
               _DetailRow(label: 'Parameters', value: '${paramsBillions}B'),
             if (model.size != null)
@@ -777,8 +801,13 @@ class _RecipeOptionsCard extends StatelessWidget {
 class _DetailRow extends StatelessWidget {
   final String label;
   final String value;
+  final bool copyable;
 
-  const _DetailRow({required this.label, required this.value});
+  const _DetailRow({
+    required this.label,
+    required this.value,
+    this.copyable = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -806,6 +835,29 @@ class _DetailRow extends StatelessWidget {
               ),
             ),
           ),
+          if (copyable)
+            SizedBox(
+              width: 28,
+              height: 28,
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                iconSize: 16,
+                icon: Icon(
+                  Icons.copy,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                tooltip: 'Copy $label',
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: value));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('$label copied to clipboard'),
+                      duration: const Duration(seconds: 1),
+                    ),
+                  );
+                },
+              ),
+            ),
         ],
       ),
     );

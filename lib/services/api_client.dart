@@ -1,7 +1,12 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:lemonade_controller/models/lemonade_load_options.dart';
 import 'package:lemonade_controller/models/lemonade_unload_options.dart';
 import 'package:lemonade_controller/models/loaded_model.dart';
+import 'package:lemonade_controller/models/pull_progress_event.dart';
+import 'package:lemonade_controller/models/pull_request_options.dart';
 import 'package:lemonade_controller/utils/logger.dart';
 
 final logger = createLogger("api_client");
@@ -84,6 +89,82 @@ class LemonadeApiClient {
     } on DioException catch (e) {
       logger.e('Failed to unload model', error: e, stackTrace: e.stackTrace);
       return false;
+    }
+  }
+
+  Future<bool> deleteModel(String modelName) async {
+    logger.i('Sending command to delete $modelName');
+    try {
+      final response = await _dio.post(
+        '$baseUrl/delete',
+        data: {'model_name': modelName},
+      );
+      final status = response.data['status'];
+      if (status == 'error') {
+        throw Exception(response.data['message'] ?? 'Delete failed');
+      }
+      return response.statusCode == 200;
+    } on DioException catch (e) {
+      logger.e('Failed to delete model', error: e, stackTrace: e.stackTrace);
+      final message = e.response?.data?['message'] ?? e.message;
+      throw Exception('Failed to delete model: $message');
+    }
+  }
+
+  Stream<PullProgressEvent> pullModel(PullRequestOptions options) async* {
+    logger.i('Pulling model ${options.modelName}');
+    try {
+      final response = await _dio.post<ResponseBody>(
+        '$baseUrl/pull',
+        data: options.toJson(),
+        options: Options(responseType: ResponseType.stream),
+      );
+
+      String buffer = '';
+      String currentEvent = 'progress';
+
+      final stream = response.data!.stream.cast<List<int>>();
+      await for (final chunk in stream.transform(utf8.decoder)) {
+        buffer += chunk;
+        final lines = buffer.split('\n');
+        buffer = lines.last;
+
+        for (int i = 0; i < lines.length - 1; i++) {
+          final line = lines[i].trim();
+          if (line.isEmpty) continue;
+          if (line.startsWith('event:')) {
+            currentEvent = line.substring(6).trim();
+          } else if (line.startsWith('data:')) {
+            final jsonStr = line.substring(5).trim();
+            if (jsonStr.isEmpty) continue;
+            try {
+              final data = jsonDecode(jsonStr) as Map<String, dynamic>;
+              yield PullProgressEvent.fromSse(currentEvent, data);
+            } catch (e) {
+              logger.w('Failed to parse SSE data: $jsonStr');
+            }
+          }
+        }
+      }
+
+      if (buffer.trim().isNotEmpty) {
+        final line = buffer.trim();
+        if (line.startsWith('data:')) {
+          final jsonStr = line.substring(5).trim();
+          if (jsonStr.isNotEmpty) {
+            try {
+              final data = jsonDecode(jsonStr) as Map<String, dynamic>;
+              yield PullProgressEvent.fromSse(currentEvent, data);
+            } catch (_) {}
+          }
+        }
+      }
+    } catch (e, stackTrace) {
+      logger.e('Failed to pull model', error: e, stackTrace: stackTrace);
+      yield PullProgressEvent(
+        eventType: PullEventType.error,
+        errorMessage: 'Failed to pull model: $e',
+      );
     }
   }
 
