@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/models/server_profile.dart';
+import 'package:lemonade_controller/pages/settings/model_params_page.dart';
 import 'package:lemonade_controller/services/settings_service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -135,6 +136,19 @@ class _SettingsContent extends ConsumerWidget {
                   settings.autoRefreshIntervalSeconds,
                 )
               : null,
+        ),
+        const Divider(),
+        _SectionHeader(title: 'VRAM Estimation'),
+        ListTile(
+          leading: const Icon(Icons.tune_outlined),
+          title: const Text('Model Parameter Overrides'),
+          subtitle: Text(
+            '${settings.modelParamOverrides.length} override${settings.modelParamOverrides.length == 1 ? '' : 's'}',
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const ModelParamsPage()),
+          ),
         ),
         const Divider(),
         _SectionHeader(title: 'Data'),

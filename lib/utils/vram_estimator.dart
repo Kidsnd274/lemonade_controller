@@ -1,34 +1,17 @@
-import 'dart:convert';
-
-import 'package:flutter/services.dart';
 import 'package:lemonade_controller/models/lemonade_model.dart';
 
 export 'package:lemonade_controller/utils/format.dart';
 
-/// Lazily loaded parameter overrides from assets/model_params.json.
+/// Parameter overrides set from user settings.
 /// Maps lowercase model name substrings to parameter counts in billions.
 Map<String, double>? _paramOverrides;
-bool _paramOverridesLoaded = false;
 
-/// Loads the model parameter overrides from the bundled JSON asset.
-/// Safe to call multiple times; only loads once.
-Future<void> loadParamOverrides() async {
-  if (_paramOverridesLoaded) return;
-  _paramOverridesLoaded = true;
-  try {
-    final json = await rootBundle.loadString('assets/model_params.json');
-    final map = jsonDecode(json) as Map<String, dynamic>;
-    _paramOverrides = {};
-    for (final entry in map.entries) {
-      if (entry.key.startsWith('_')) continue;
-      final value = entry.value;
-      if (value is num) {
-        _paramOverrides![entry.key.toLowerCase()] = value.toDouble();
-      }
-    }
-  } catch (_) {
-    _paramOverrides = null;
-  }
+/// Replaces the active parameter overrides used by VRAM estimation.
+/// Keys are lowercased internally for case-insensitive matching.
+void setParamOverrides(Map<String, double> overrides) {
+  _paramOverrides = overrides.map(
+    (k, v) => MapEntry(k.toLowerCase(), v),
+  );
 }
 
 /// Looks up parameter count from the overrides file.
@@ -73,8 +56,19 @@ const quantizationBitsPerWeight = <String, double>{
   'Q3_K_S': 3.50,
   'Q2_K': 3.35,
   'IQ4_XS': 4.25,
+  'IQ4_NL': 4.50,
+  'IQ3_S': 3.44,
+  'UD-IQ3_S': 3.44,
+  'IQ3_M': 3.70,
+  'UD-IQ3_M': 3.70,
+  'IQ3_XS': 3.30,
   'IQ3_XXS': 3.06,
+  'IQ2_XS': 2.31,
+  'IQ2_S': 2.50,
+  'IQ2_M': 2.70,
   'IQ2_XXS': 2.06,
+  'IQ1_S': 1.56,
+  'IQ1_M': 1.75,
 };
 
 /// Tries to extract a parameter count (in billions) from a model name or

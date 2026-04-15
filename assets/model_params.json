@@ -2,5 +2,6 @@
   "_comment": "Maps model name substrings to parameter counts in billions. The estimator checks these before trying to parse from the model name. Keys are matched case-insensitively against the model ID.",
   "GLM-4.5-Air": 110.0,
   "GLM-4.7-Flash": 31.0,
-  "Qwen3-Coder-Next": 80.0
+  "Qwen3-Coder-Next": 80.0,
+  "MiniMax-M2.7": 229.0
 }

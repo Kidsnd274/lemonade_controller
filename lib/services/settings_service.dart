@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/models/model_load_preset.dart';
 import 'package:lemonade_controller/models/server_profile.dart';
@@ -18,6 +19,7 @@ class AppSettings {
   final String activeProfileId;
   final Set<String> favouriteModelIds;
   final List<ModelLoadPreset> modelLoadPresets;
+  final Map<String, double> modelParamOverrides;
 
   const AppSettings({
     this.themeMode = ThemeMode.system,
@@ -28,6 +30,7 @@ class AppSettings {
     this.activeProfileId = 'default',
     this.favouriteModelIds = const {},
     this.modelLoadPresets = const [],
+    this.modelParamOverrides = const {},
   });
 
   ServerProfile get activeProfile {
@@ -49,6 +52,7 @@ class AppSettings {
         'activeProfileId': activeProfileId,
         'favouriteModelIds': favouriteModelIds.toList(),
         'modelLoadPresets': modelLoadPresets.map((p) => p.toJson()).toList(),
+        'modelParamOverrides': modelParamOverrides,
       };
 
   factory AppSettings.fromJson(Map<String, dynamic> json) {
@@ -79,6 +83,11 @@ class AppSettings {
               )
               .toList() ??
           [],
+      modelParamOverrides:
+          (json['modelParamOverrides'] as Map<String, dynamic>?)?.map(
+                (k, v) => MapEntry(k, (v as num).toDouble()),
+              ) ??
+              {},
     );
   }
 
@@ -91,6 +100,7 @@ class AppSettings {
     String? activeProfileId,
     Set<String>? favouriteModelIds,
     List<ModelLoadPreset>? modelLoadPresets,
+    Map<String, double>? modelParamOverrides,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
@@ -102,6 +112,7 @@ class AppSettings {
       activeProfileId: activeProfileId ?? this.activeProfileId,
       favouriteModelIds: favouriteModelIds ?? this.favouriteModelIds,
       modelLoadPresets: modelLoadPresets ?? this.modelLoadPresets,
+      modelParamOverrides: modelParamOverrides ?? this.modelParamOverrides,
     );
   }
 
@@ -116,7 +127,8 @@ class AppSettings {
           activeProfileId == other.activeProfileId &&
           _profileListEquals(serverProfiles, other.serverProfiles) &&
           _setEquals(favouriteModelIds, other.favouriteModelIds) &&
-          _presetListEquals(modelLoadPresets, other.modelLoadPresets);
+          _presetListEquals(modelLoadPresets, other.modelLoadPresets) &&
+          _doubleMapEquals(modelParamOverrides, other.modelParamOverrides);
 
   static bool _profileListEquals(
     List<ServerProfile> a,
@@ -145,6 +157,14 @@ class AppSettings {
     return true;
   }
 
+  static bool _doubleMapEquals(Map<String, double> a, Map<String, double> b) {
+    if (a.length != b.length) return false;
+    for (final key in a.keys) {
+      if (a[key] != b[key]) return false;
+    }
+    return true;
+  }
+
   @override
   int get hashCode => Object.hash(
         themeMode,
@@ -155,6 +175,9 @@ class AppSettings {
         Object.hashAll(serverProfiles),
         Object.hashAll(favouriteModelIds),
         Object.hashAll(modelLoadPresets),
+        Object.hashAll(
+          modelParamOverrides.entries.map((e) => Object.hash(e.key, e.value)),
+        ),
       );
 }
 
@@ -168,9 +191,29 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
   static const _keyFavouriteModelIds = 'favourite_model_ids';
   static const _keyModelLoadPresets = 'model_load_presets';
   static const _keyUiScale = 'ui_scale';
+  static const _keyModelParamOverrides = 'model_param_overrides';
 
   // Legacy key for migration
   static const _keyBaseUrl = 'base_url';
+
+  /// Loads default model parameter overrides from the bundled asset.
+  static Future<Map<String, double>> loadDefaultModelParamOverrides() async {
+    try {
+      final json = await rootBundle.loadString('assets/model_params.json');
+      final map = jsonDecode(json) as Map<String, dynamic>;
+      final result = <String, double>{};
+      for (final entry in map.entries) {
+        if (entry.key.startsWith('_')) continue;
+        final value = entry.value;
+        if (value is num) {
+          result[entry.key] = value.toDouble();
+        }
+      }
+      return result;
+    } catch (_) {
+      return {};
+    }
+  }
 
   @override
   Future<AppSettings> build() async {
@@ -205,6 +248,21 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
     final presets =
         presetsJson != null ? ModelLoadPreset.decodeList(presetsJson) : <ModelLoadPreset>[];
 
+    Map<String, double> modelParamOverrides;
+    final overridesJson = prefs.getString(_keyModelParamOverrides);
+    if (overridesJson != null) {
+      final decoded = jsonDecode(overridesJson) as Map<String, dynamic>;
+      modelParamOverrides = decoded.map(
+        (k, v) => MapEntry(k, (v as num).toDouble()),
+      );
+    } else {
+      modelParamOverrides = await loadDefaultModelParamOverrides();
+      await prefs.setString(
+        _keyModelParamOverrides,
+        jsonEncode(modelParamOverrides),
+      );
+    }
+
     return AppSettings(
       themeMode: ThemeMode.values.firstWhere(
         (m) => m.name == prefs.getString(_keyThemeMode),
@@ -219,6 +277,7 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
       activeProfileId: activeId,
       favouriteModelIds: favouriteIds,
       modelLoadPresets: presets,
+      modelParamOverrides: modelParamOverrides,
     );
   }
 
@@ -250,6 +309,10 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
       prefs.setString(
         _keyModelLoadPresets,
         ModelLoadPreset.encodeList(next.modelLoadPresets),
+      ),
+      prefs.setString(
+        _keyModelParamOverrides,
+        jsonEncode(next.modelParamOverrides),
       ),
     ]);
     state = AsyncData(next);
@@ -342,6 +405,10 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
         _keyModelLoadPresets,
         ModelLoadPreset.encodeList(imported.modelLoadPresets),
       ),
+      prefs.setString(
+        _keyModelParamOverrides,
+        jsonEncode(imported.modelParamOverrides),
+      ),
     ]);
     state = AsyncData(imported);
   }
@@ -349,8 +416,10 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
   Future<void> reset() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
+    final defaultOverrides = await loadDefaultModelParamOverrides();
     final defaults = AppSettings(
       serverProfiles: [ServerProfile.createDefault()],
+      modelParamOverrides: defaultOverrides,
     );
     await Future.wait([
       prefs.setString(
@@ -358,6 +427,10 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
         ServerProfile.encodeList(defaults.serverProfiles),
       ),
       prefs.setString(_keyActiveProfileId, defaults.activeProfileId),
+      prefs.setString(
+        _keyModelParamOverrides,
+        jsonEncode(defaults.modelParamOverrides),
+      ),
     ]);
     state = AsyncData(defaults);
   }

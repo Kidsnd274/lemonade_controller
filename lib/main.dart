@@ -9,7 +9,6 @@ import 'package:logger/logger.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   Logger.level = Level.debug;
-  await loadParamOverrides();
   runApp(ProviderScope(child: LemonadeController()));
 }
 
@@ -19,6 +18,8 @@ class LemonadeController extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settingsAsync = ref.watch(settingsProvider);
+
+    settingsAsync.whenData((s) => setParamOverrides(s.modelParamOverrides));
 
     return settingsAsync.when(
       loading: () => MaterialApp(
