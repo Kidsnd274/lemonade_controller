@@ -40,6 +40,7 @@ class LoadingModelsNotifier extends StateNotifier<Set<String>> {
       final result = await _apiClient.loadModel(opts);
       if (result) {
         await _ref.read(loadedModelsProvider.notifier).updateState();
+        _ref.invalidate(healthInfoProvider);
       }
       return result;
     } finally {
@@ -54,6 +55,7 @@ class LoadingModelsNotifier extends StateNotifier<Set<String>> {
       final result = await _apiClient.unloadModel(options);
       if (result) {
         await _ref.read(loadedModelsProvider.notifier).updateState();
+        _ref.invalidate(healthInfoProvider);
       }
       return result;
     } finally {
@@ -68,6 +70,7 @@ class LoadingModelsNotifier extends StateNotifier<Set<String>> {
       if (result) {
         await _ref.read(loadedModelsProvider.notifier).updateState();
         _ref.invalidate(modelsProvider);
+        _ref.invalidate(healthInfoProvider);
       }
       return result;
     } finally {
