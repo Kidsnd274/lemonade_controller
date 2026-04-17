@@ -1,26 +1,72 @@
+<div align="center">
+
+<img src="assets/icon/app_icon.png" alt="Lemonade Controller icon" width="128" height="128" />
+
 # Lemonade Controller 🍋
 
-A cross-platform Flutter app for operating AI models on one or more Lemonade servers.  
-It focuses on day-to-day model operations: monitoring server health, loading/unloading models, pulling new checkpoints, and managing reusable load presets.
+**Manage your Lemonade Server AI models from anywhere — desktop or phone.**
+
+A cross-platform companion app for [Lemonade Server](https://github.com/lemonade-sdk/lemonade).
+Load and unload models, pull new checkpoints from Hugging Face, watch live
+server health, and organize your favorite model configurations into
+reusable presets — all from a clean, responsive UI.
+
+[![Platform: Windows](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white)](#download--install-)
+[![Platform: macOS](https://img.shields.io/badge/platform-macOS-000000?logo=apple&logoColor=white)](#download--install-)
+[![Platform: Linux](https://img.shields.io/badge/platform-Linux-FCC624?logo=linux&logoColor=black)](#download--install-)
+[![Platform: Android](https://img.shields.io/badge/platform-Android-3DDC84?logo=android&logoColor=white)](#download--install-)
+[![Built with Flutter](https://img.shields.io/badge/built%20with-Flutter-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
+[![State: Riverpod](https://img.shields.io/badge/state-Riverpod-1976D2)](https://riverpod.dev)
+
+</div>
+
+---
+
+> **Note:** This is an unofficial, community-built controller for Lemonade Server.
 
 ## Features ✨
 
-- **Responsive Navigation** - Unified app shell with `Home`, `Models`, `Pull`, `Presets`, and `Settings` pages across mobile, tablet, and desktop layouts.
-- **Server Dashboard** - Live server health, active model, model slot usage, loaded/loading models, pull/download progress, system specs, and recipe/backend availability.
-- **Model Catalog & Actions** - Search and filter models (`user.` and quantization filters), favorite models, and open detailed model pages for load/unload, configure-and-load, and delete.
-- **Pull Models from Hugging Face** - Pull by checkpoint/recipe with labels (`reasoning`, `vision`, `embedding`, `reranking`) and live SSE download progress (percent, file, bytes, speed).
-- **Model Load Presets** - Create/edit/reorder presets, configure per-model load options (`ctx_size`, `llamacpp_backend`, `llamacpp_args`), and batch-load models.
-- **VRAM Estimation Tooling** - Per-model and per-preset VRAM estimates plus editable model parameter overrides (form UI + JSON editor).
-- **Multi-Server Profiles** - Save and switch between multiple API base URLs from settings.
-- **Portable Settings** - Export/import all app settings as JSON, plus one-click reset to defaults.
-- **Appearance Controls** - Theme mode (system/light/dark) and UI scaling controls.
-- **Release Packaging Scripts** - Build scripts for Windows, Android, macOS, and Linux distribution artifacts.
+- **Live Server Dashboard** — See server health, the active model, loaded/loading models, model slot usage, pull/download progress, and your system specs at a glance.
+- **Model Catalog** — Browse, search, filter (by `user.` prefix or quantization), and favorite models from your server's catalog.
+- **One-Tap Model Actions** — Load, unload, configure-and-load, or delete any model from its dedicated details page.
+- **Pull from Hugging Face** — Pull new models by checkpoint/recipe with labels (`reasoning`, `vision`, `embedding`, `reranking`) and watch live download progress (percent, file, bytes, speed) via SSE.
+- **Load Presets** — Create, edit, and reorder presets that bundle per-model options (`ctx_size`, `llamacpp_backend`, `llamacpp_args`) so you can batch-load your favorite setups.
+- **VRAM Estimation** — See estimated VRAM usage per model and per preset, with editable model parameter overrides through either a form UI or a JSON editor.
+- **Multi-Server Profiles** — Save multiple Lemonade Server endpoints and switch between them instantly.
+- **Portable Settings** — Export and import all app settings as JSON, or reset everything to defaults in one click.
+- **Appearance Controls** — System/light/dark theme and adjustable UI scaling.
+- **Responsive Layout** — A unified navigation shell that adapts to mobile, tablet, and desktop.
 
 ## Screenshots 📸
 
-Screenshots are still pending. If you want, open an issue/PR and we can add a gallery section.
+Screenshots are still pending. If you'd like to contribute a gallery, please open an issue or PR!
 
-## Tech Stack 🛠️
+## Download & Install 📦
+
+Prebuilt releases are available on the [Releases page](https://github.com/Kidsnd274/lemonade_controller/releases).
+
+Supported platforms:
+
+- **Windows** — Portable `.zip` or Inno Setup installer
+- **Android** — APK (split per ABI)
+- **macOS** — Apple Silicon, Intel, or Universal bundles
+- **Linux** — `.deb` and `.rpm` packages
+- **iOS / Web** — Build from source (see below)
+
+## Usage 🚀
+
+1. Make sure you have a running [Lemonade Server](https://github.com/lemonade-sdk/lemonade) instance you can reach over the network.
+2. Install and launch Lemonade Controller.
+3. Open **Settings → Profiles** and add your server's API base URL (default: `http://localhost:8020/api/v1`).
+4. Head to the **Home** tab to see your server's status, or jump into **Models**, **Pull**, or **Presets** to start managing your models.
+
+Your profiles, favorites, presets, refresh preferences, theme/UI scale, and model parameter overrides are all persisted locally on your device.
+
+---
+
+## For Developers 👩‍💻
+
+### Tech Stack 🛠️
 
 - **Framework**: Flutter (Dart)
 - **State Management**: Riverpod
@@ -28,19 +74,17 @@ Screenshots are still pending. If you want, open an issue/PR and we can add a ga
 - **Storage**: SharedPreferences
 - **Utilities**: Logger, File Picker, Package Info Plus
 
-## API Integration
+### API Integration
 
 The app integrates with [Lemonade Server](https://github.com/lemonade-sdk/lemonade) using a configurable API base URL (default: `http://localhost:8020/api/v1`).
 
-- `GET /system-info` - System/device info and recipe/backend capabilities
-- `GET /health` - Server status, active model, loaded models, and capacity
-- `GET /models` - Model catalog
-- `POST /load` - Load a model (optionally with runtime options)
-- `POST /unload` - Unload a model
-- `POST /delete` - Delete a model
-- `POST /pull` - Pull a model with streaming progress events (SSE)
-
-## Getting Started 🚀
+- `GET /system-info` — System/device info and recipe/backend capabilities
+- `GET /health` — Server status, active model, loaded models, and capacity
+- `GET /models` — Model catalog
+- `POST /load` — Load a model (optionally with runtime options)
+- `POST /unload` — Unload a model
+- `POST /delete` — Delete a model
+- `POST /pull` — Pull a model with streaming progress events (SSE)
 
 ### Prerequisites
 
@@ -59,14 +103,9 @@ flutter run
 
 ### Supported Platforms
 
-- Android
-- iOS
-- Windows
-- macOS
-- Linux
-- Web
+Android · iOS · Windows · macOS · Linux · Web
 
-## Build & Distribution
+### Build & Distribution
 
 Preconfigured scripts are available in `scripts/`:
 
@@ -81,7 +120,7 @@ Preconfigured scripts are available in `scripts/`:
 
 Most scripts infer app version from `pubspec.yaml` and write outputs to `dist/`.
 
-## Project Structure
+### Project Structure
 
 ```text
 lib/
@@ -101,9 +140,8 @@ lib/
 └── utils/                    # Formatters, quant colors, VRAM estimator
 ```
 
-## Notes
+### Notes
 
 - App settings (profiles, favorites, presets, refresh preferences, theme/UI scale, model param overrides) are persisted locally.
 - Download progress and model loading state are reflected both in their dedicated pages and the Home dashboard.
 - The project is actively evolving; behavior and APIs may continue to improve between releases.
-
