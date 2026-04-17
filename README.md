@@ -39,7 +39,13 @@ reusable presets — all from a clean, responsive UI.
 
 ## Screenshots 📸
 
-Screenshots are still pending. If you'd like to contribute a gallery, please open an issue or PR!
+<div align="left">
+  <img src="docs/images/image1.jpg" alt="Screenshot 1" width="15%" />
+  <img src="docs/images/image2.jpg" alt="Screenshot 2" width="15%" />
+  <img src="docs/images/image3.jpg" alt="Screenshot 3" width="15%" />
+  <img src="docs/images/image4.jpg" alt="Screenshot 4" width="15%" />
+  <img src="docs/images/image5.jpg" alt="Screenshot 5" width="15%" />
+</div>
 
 ## Download & Install 📦
 
