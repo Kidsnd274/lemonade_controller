@@ -38,6 +38,7 @@ reusable presets — all from a clean, responsive UI.
 - **Responsive Layout** — A unified navigation shell that adapts to mobile, tablet, and desktop.
 
 ## Screenshots 📸
+<img src="docs/images/desktop.png" alt="Desktop" width="40%" />
 
 <div align="left">
   <img src="docs/images/image1.jpg" alt="Screenshot 1" width="15%" />
