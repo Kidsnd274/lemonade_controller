@@ -16,14 +16,16 @@ class _PullPageState extends ConsumerState<PullPage> {
   final _formKey = GlobalKey<FormState>();
   final _modelNameController = TextEditingController();
   final _checkpointController = TextEditingController();
-  final _recipeController = TextEditingController();
   final _mmprojController = TextEditingController();
 
-  bool _reasoning = false;
-  bool _vision = false;
-  bool _embedding = false;
-  bool _reranking = false;
+  bool? _reasoning;
+  bool? _vision;
+  bool? _embedding;
+  bool? _reranking;
   String? _selectedRecipe = 'llamacpp';
+  _ParsedPullCommand? _parsedCommand;
+  bool _modelNameAutofilledFromCommand = false;
+  final Set<String> _shownPullErrors = {};
 
   static const _commonRecipes = ['llamacpp', 'oga', 'hf'];
 
@@ -38,24 +40,212 @@ class _PullPageState extends ConsumerState<PullPage> {
     _checkpointController.removeListener(_onCheckpointChanged);
     _modelNameController.dispose();
     _checkpointController.dispose();
-    _recipeController.dispose();
     _mmprojController.dispose();
     super.dispose();
   }
 
-  /// Extracts the repo name from a checkpoint like "unsloth/gemma-4-E4B-it-GGUF:BF16"
-  /// and autofills the model name field only if it's empty.
-  void _onCheckpointChanged() {
-    if (_modelNameController.text.trim().isNotEmpty) return;
+  void _listenForPullErrors() {
+    ref.listen<Map<String, PullProgressEvent>>(pullProgressProvider, (
+      previous,
+      next,
+    ) {
+      for (final entry in next.entries) {
+        final previousEvent = previous?[entry.key];
+        final event = entry.value;
+        if (!event.isError) {
+          _shownPullErrors.removeWhere(
+            (key) => key.startsWith('${entry.key}:'),
+          );
+          continue;
+        }
+        if (previousEvent?.isError == true) continue;
 
+        final errorKey = '${entry.key}:${event.errorMessage ?? ''}';
+        if (_shownPullErrors.contains(errorKey)) continue;
+        _shownPullErrors.add(errorKey);
+
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _showPullErrorDialog(entry.key, event.errorMessage);
+        });
+      }
+    });
+  }
+
+  Future<void> _showPullErrorDialog(
+    String modelName,
+    String? errorMessage,
+  ) async {
+    final theme = Theme.of(context);
+    final message = errorMessage?.trim().isNotEmpty == true
+        ? errorMessage!.trim()
+        : 'The pull request failed. Please check the checkpoint and try again.';
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          icon: Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.errorContainer,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.error_outline,
+              color: theme.colorScheme.onErrorContainer,
+              size: 30,
+            ),
+          ),
+          title: const Text('Pull Failed'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                modelName.replaceFirst('user.', ''),
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.errorContainer.withValues(
+                    alpha: 0.35,
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: theme.colorScheme.error.withValues(alpha: 0.35),
+                  ),
+                ),
+                child: SelectableText(
+                  message,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onErrorContainer,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton.icon(
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(Icons.check),
+              label: const Text('Got it'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Detects pasted `lemonade pull` commands and extracts the checkpoint.
+  /// Otherwise extracts the repo name from a checkpoint like
+  /// "unsloth/gemma-4-E4B-it-GGUF:BF16" and autofills the model name field
+  /// only if it's empty.
+  void _onCheckpointChanged() {
     final text = _checkpointController.text.trim();
+    final parsedCommand = _parsePullCommand(text);
+
+    if (text.isEmpty && _parsedCommand != null) {
+      if (_modelNameAutofilledFromCommand) {
+        _modelNameController.clear();
+      }
+      setState(() {
+        _parsedCommand = null;
+        _modelNameAutofilledFromCommand = false;
+      });
+      return;
+    }
+
+    if (parsedCommand != _parsedCommand) {
+      setState(() => _parsedCommand = parsedCommand);
+    }
+
     if (text.isEmpty) return;
 
-    final withoutVariant = text.split(':').first;
+    if (parsedCommand != null) {
+      if (_modelNameController.text.trim().isEmpty &&
+          parsedCommand.modelName != null) {
+        _modelNameController.text = parsedCommand.modelName!;
+        _modelNameAutofilledFromCommand = true;
+      }
+      return;
+    }
+
+    if (_modelNameAutofilledFromCommand) {
+      _modelNameAutofilledFromCommand = false;
+    }
+
+    if (_modelNameController.text.trim().isNotEmpty) return;
+
+    final modelName = _modelNameFromCheckpoint(text);
+    if (modelName != null) {
+      _modelNameController.text = modelName;
+    }
+  }
+
+  _ParsedPullCommand? _parsePullCommand(String input) {
+    final match = RegExp(
+      r'^\s*lemonade\s+pull\s+(.+)$',
+      caseSensitive: false,
+    ).firstMatch(input);
+    if (match == null) return null;
+
+    final tokens = _splitCommandArgs(match.group(1)!.trim());
+    if (tokens.isEmpty) return null;
+
+    String? recipe;
+    String? checkpoint;
+    final firstArg = tokens.first;
+
+    for (var i = 1; i < tokens.length; i++) {
+      final token = tokens[i];
+      if (token == '--recipe' && i + 1 < tokens.length) {
+        recipe = tokens[++i];
+      } else if (token == '--checkpoint' && i + 2 < tokens.length) {
+        i++; // skip checkpoint name, e.g. "main"
+        checkpoint = tokens[++i];
+      }
+    }
+
+    checkpoint ??= firstArg;
+
+    final modelName = checkpoint == firstArg
+        ? _modelNameFromCheckpoint(checkpoint)
+        : _stripUserPrefix(firstArg);
+
+    return _ParsedPullCommand(
+      checkpoint: checkpoint,
+      modelName: modelName,
+      recipe: recipe,
+    );
+  }
+
+  List<String> _splitCommandArgs(String input) {
+    return RegExp(r'"([^"]*)"|\S+')
+        .allMatches(input)
+        .map((match) => match.group(1) ?? match.group(0)!)
+        .toList();
+  }
+
+  String? _modelNameFromCheckpoint(String checkpoint) {
+    final withoutVariant = checkpoint.split(':').first;
     final parts = withoutVariant.split('/');
     if (parts.length >= 2 && parts.last.isNotEmpty) {
-      _modelNameController.text = parts.last;
+      return parts.last;
     }
+    return null;
+  }
+
+  String _stripUserPrefix(String modelName) {
+    return modelName.startsWith('user.')
+        ? modelName.substring('user.'.length)
+        : modelName;
   }
 
   void _submit() {
@@ -66,26 +256,33 @@ class _PullPageState extends ConsumerState<PullPage> {
       modelName = 'user.$modelName';
     }
 
+    final command = _parsePullCommand(_checkpointController.text.trim());
+    final isCommandMode = command != null;
+    final recipe = command?.recipe ?? _selectedRecipe!;
+    final mmproj = _vision == true ? _mmprojController.text.trim() : '';
+
     final options = PullRequestOptions(
       modelName: modelName,
-      checkpoint: _checkpointController.text.trim(),
-      recipe: _selectedRecipe!,
-      reasoning: _reasoning,
-      vision: _vision,
-      embedding: _embedding,
-      reranking: _reranking,
-      mmproj: _vision ? _mmprojController.text.trim() : null,
+      checkpoint: command?.checkpoint ?? _checkpointController.text.trim(),
+      recipe: recipe,
+      reasoning: isCommandMode ? null : _reasoning,
+      vision: isCommandMode ? null : _vision,
+      embedding: isCommandMode ? null : _embedding,
+      reranking: isCommandMode ? null : _reranking,
+      mmproj: isCommandMode || mmproj.isEmpty ? null : mmproj,
     );
 
     ref.read(pullProgressProvider.notifier).startPull(options);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Started pulling "$modelName"')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Started pulling "$modelName"')));
   }
 
   @override
   Widget build(BuildContext context) {
+    _listenForPullErrors();
+
     final theme = Theme.of(context);
     final pullProgress = ref.watch(pullProgressProvider);
     final systemInfoAsync = ref.watch(systemInfoProvider);
@@ -177,8 +374,10 @@ class _PullPageState extends ConsumerState<PullPage> {
                 controller: _checkpointController,
                 decoration: InputDecoration(
                   labelText: 'Checkpoint',
-                  hintText: 'e.g. unsloth/Phi-4-mini-instruct-GGUF:Q4_K_M',
-                  helperText: 'HuggingFace checkpoint (org/repo or org/repo:variant)',
+                  hintText:
+                      'e.g. unsloth/Phi-4-mini-instruct-GGUF:Q4_K_M or lemonade pull org/repo',
+                  helperText:
+                      'HuggingFace checkpoint or a lemonade pull command',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -192,11 +391,14 @@ class _PullPageState extends ConsumerState<PullPage> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: recipes.contains(_selectedRecipe)
+                initialValue: recipes.contains(_selectedRecipe)
                     ? _selectedRecipe
                     : null,
                 decoration: InputDecoration(
                   labelText: 'Recipe',
+                  helperText: _parsedCommand?.recipe != null
+                      ? 'Using recipe from command: ${_parsedCommand!.recipe}'
+                      : 'Required by Lemonade Server',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -204,63 +406,50 @@ class _PullPageState extends ConsumerState<PullPage> {
                 items: recipes
                     .map((r) => DropdownMenuItem(value: r, child: Text(r)))
                     .toList(),
-                onChanged: (value) {
-                  setState(() => _selectedRecipe = value);
-                },
+                onChanged: (value) => setState(() => _selectedRecipe = value),
                 validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
+                  if ((value == null || value.trim().isEmpty) &&
+                      _parsedCommand?.recipe == null) {
                     return 'Recipe is required';
                   }
                   return null;
                 },
               ),
-              const SizedBox(height: 20),
-              Text(
-                'Labels',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                children: [
-                  FilterChip(
-                    label: const Text('Reasoning'),
-                    selected: _reasoning,
-                    onSelected: (v) => setState(() => _reasoning = v),
-                  ),
-                  FilterChip(
-                    label: const Text('Vision'),
-                    selected: _vision,
-                    onSelected: (v) => setState(() => _vision = v),
-                  ),
-                  FilterChip(
-                    label: const Text('Embedding'),
-                    selected: _embedding,
-                    onSelected: (v) => setState(() => _embedding = v),
-                  ),
-                  FilterChip(
-                    label: const Text('Reranking'),
-                    selected: _reranking,
-                    onSelected: (v) => setState(() => _reranking = v),
-                  ),
-                ],
-              ),
-              if (_vision) ...[
+              if (_parsedCommand != null) ...[
                 const SizedBox(height: 16),
-                TextFormField(
-                  controller: _mmprojController,
-                  decoration: InputDecoration(
-                    labelText: 'mmproj (optional)',
-                    hintText: 'Multimodal projector file for vision models',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.secondaryContainer.withValues(
+                      alpha: 0.35,
                     ),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: theme.colorScheme.outlineVariant),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.terminal,
+                        size: 18,
+                        color: theme.colorScheme.onSecondaryContainer,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Lemonade command detected. Advanced Options are disabled while this command is active.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSecondaryContainer,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
+              const SizedBox(height: 16),
+              _buildAdvancedSettings(theme, recipes),
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
@@ -276,6 +465,186 @@ class _PullPageState extends ConsumerState<PullPage> {
       ),
     );
   }
+
+  Widget _buildAdvancedSettings(ThemeData theme, List<String> recipes) {
+    final commandMode = _parsedCommand != null;
+
+    return IgnorePointer(
+      ignoring: commandMode,
+      child: Opacity(
+        opacity: commandMode ? 0.55 : 1,
+        child: Container(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerLowest,
+            border: Border.all(color: theme.colorScheme.outlineVariant),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: ExpansionTile(
+            leading: Icon(
+              Icons.tune,
+              size: 20,
+              color: theme.colorScheme.primary,
+            ),
+            title: Text(
+              'Advanced Options',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            subtitle: commandMode
+                ? const Text('Disabled while a lemonade command is detected')
+                : const Text(
+                    'Optional label overrides; Auto lets the server infer',
+                  ),
+            childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            children: [
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(
+                    Icons.label_outline,
+                    size: 18,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Labels',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Column(
+                children: [
+                  _buildLabelOptionRow(
+                    theme: theme,
+                    label: 'Reasoning',
+                    description: 'Model performs chain-of-thought style tasks',
+                    value: _reasoning,
+                    onChanged: (value) => setState(() => _reasoning = value),
+                  ),
+                  const SizedBox(height: 10),
+                  _buildLabelOptionRow(
+                    theme: theme,
+                    label: 'Vision',
+                    description: 'Model accepts image or multimodal inputs',
+                    value: _vision,
+                    onChanged: (value) => setState(() => _vision = value),
+                  ),
+                  const SizedBox(height: 10),
+                  _buildLabelOptionRow(
+                    theme: theme,
+                    label: 'Embedding',
+                    description: 'Model generates vector embeddings',
+                    value: _embedding,
+                    onChanged: (value) => setState(() => _embedding = value),
+                  ),
+                  const SizedBox(height: 10),
+                  _buildLabelOptionRow(
+                    theme: theme,
+                    label: 'Reranking',
+                    description: 'Model reranks search or retrieval results',
+                    value: _reranking,
+                    onChanged: (value) => setState(() => _reranking = value),
+                  ),
+                ],
+              ),
+              if (_vision == true) ...[
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _mmprojController,
+                  decoration: InputDecoration(
+                    labelText: 'mmproj (optional)',
+                    hintText: 'Multimodal projector file for vision models',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLabelOptionRow({
+    required ThemeData theme,
+    required String label,
+    required String description,
+    required bool? value,
+    required ValueChanged<bool?> onChanged,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  description,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          SegmentedButton<bool?>(
+            segments: const [
+              ButtonSegment(value: null, label: Text('Auto')),
+              ButtonSegment(value: true, label: Text('Yes')),
+              ButtonSegment(value: false, label: Text('No')),
+            ],
+            selected: {value},
+            showSelectedIcon: false,
+            onSelectionChanged: (selection) => onChanged(selection.first),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ParsedPullCommand {
+  final String checkpoint;
+  final String? modelName;
+  final String? recipe;
+
+  const _ParsedPullCommand({
+    required this.checkpoint,
+    required this.modelName,
+    required this.recipe,
+  });
+
+  @override
+  bool operator ==(Object other) {
+    return other is _ParsedPullCommand &&
+        other.checkpoint == checkpoint &&
+        other.modelName == modelName &&
+        other.recipe == recipe;
+  }
+
+  @override
+  int get hashCode => Object.hash(checkpoint, modelName, recipe);
 }
 
 class _ActiveDownloads extends StatelessWidget {
@@ -300,7 +669,11 @@ class _ActiveDownloads extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(Icons.downloading, size: 20, color: theme.colorScheme.primary),
+                Icon(
+                  Icons.downloading,
+                  size: 20,
+                  color: theme.colorScheme.primary,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   'Active Downloads',
@@ -399,7 +772,8 @@ class _DownloadRow extends StatelessWidget {
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-              if (event.bytesDownloaded != null && event.bytesTotal != null) ...[
+              if (event.bytesDownloaded != null &&
+                  event.bytesTotal != null) ...[
                 const SizedBox(width: 8),
                 Text(
                   '${formatFileSize(event.bytesDownloaded!.toDouble())} / ${formatFileSize(event.bytesTotal!.toDouble())}',
