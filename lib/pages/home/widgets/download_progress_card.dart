@@ -35,7 +35,7 @@ class DownloadProgressCard extends ConsumerWidget {
   }
 }
 
-class _DownloadProgressRow extends StatelessWidget {
+class _DownloadProgressRow extends ConsumerWidget {
   final String modelName;
   final PullProgressEvent event;
   final ThemeData theme;
@@ -47,8 +47,9 @@ class _DownloadProgressRow extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final percent = event.percent ?? 0;
+    final inProgress = !event.isComplete && !event.isError;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -75,7 +76,7 @@ class _DownloadProgressRow extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            if (!event.isComplete && !event.isError)
+            if (inProgress)
               Text(
                 '$percent%',
                 style: theme.textTheme.labelMedium?.copyWith(
@@ -83,6 +84,25 @@ class _DownloadProgressRow extends StatelessWidget {
                   color: theme.colorScheme.primary,
                 ),
               ),
+            if (inProgress) ...[
+              const SizedBox(width: 4),
+              IconButton(
+                icon: const Icon(Icons.close, size: 16),
+                tooltip: 'Cancel download',
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(
+                  minWidth: 28,
+                  minHeight: 28,
+                ),
+                color: theme.colorScheme.onSurfaceVariant,
+                onPressed: () {
+                  ref
+                      .read(pullProgressProvider.notifier)
+                      .cancelPull(modelName);
+                },
+              ),
+            ],
           ],
         ),
         if (event.isError) ...[

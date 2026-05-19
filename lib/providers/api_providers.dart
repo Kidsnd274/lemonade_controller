@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:lemonade_controller/models/health_info.dart';
@@ -180,13 +181,16 @@ class PullProgressNotifier
   final LemonadeApiClient _apiClient;
   final Ref _ref;
   final Map<String, _SpeedTracker> _speedTrackers = {};
+  final Map<String, CancelToken> _cancelTokens = {};
 
   PullProgressNotifier(this._apiClient, this._ref) : super({});
 
   Future<void> startPull(PullRequestOptions options) async {
     final modelName = options.modelName;
+    final cancelToken = CancelToken();
 
     _speedTrackers[modelName] = _SpeedTracker();
+    _cancelTokens[modelName] = cancelToken;
     state = {
       ...state,
       modelName: const PullProgressEvent(
@@ -196,14 +200,17 @@ class PullProgressNotifier
     };
 
     try {
-      await for (final event in _apiClient.pullModel(options)) {
+      await for (final event in _apiClient.pullModel(
+        options,
+        cancelToken: cancelToken,
+      )) {
         if (!mounted) return;
 
         final enriched = _enrichWithSpeed(modelName, event);
         state = {...state, modelName: enriched};
 
         if (event.isComplete) {
-          _speedTrackers.remove(modelName);
+          _cleanupPull(modelName);
           _ref.invalidate(modelsProvider);
           await Future.delayed(const Duration(seconds: 3));
           if (mounted) {
@@ -213,7 +220,7 @@ class PullProgressNotifier
         }
 
         if (event.isError) {
-          _speedTrackers.remove(modelName);
+          _cleanupPull(modelName);
           await Future.delayed(const Duration(seconds: 5));
           if (mounted) {
             state = Map.from(state)..remove(modelName);
@@ -221,12 +228,33 @@ class PullProgressNotifier
           return;
         }
       }
+      // Stream ended naturally (e.g. user cancel) — clear state immediately.
+      _cleanupPull(modelName);
+      if (mounted) {
+        state = Map.from(state)..remove(modelName);
+      }
     } catch (_) {
-      _speedTrackers.remove(modelName);
+      _cleanupPull(modelName);
       if (mounted) {
         state = Map.from(state)..remove(modelName);
       }
     }
+  }
+
+  /// Aborts an in-flight pull by cancelling the underlying SSE request.
+  /// The server detects the disconnect and stops the download.
+  void cancelPull(String modelName) {
+    final token = _cancelTokens[modelName];
+    if (token == null || token.isCancelled) return;
+    token.cancel('user-cancelled');
+    // The pullModel stream will end via the DioException(cancel) path which
+    // returns without yielding an error; startPull's post-loop cleanup
+    // removes the entry from state.
+  }
+
+  void _cleanupPull(String modelName) {
+    _speedTrackers.remove(modelName);
+    _cancelTokens.remove(modelName);
   }
 
   PullProgressEvent _enrichWithSpeed(String modelName, PullProgressEvent event) {

@@ -112,13 +112,17 @@ class LemonadeApiClient {
     }
   }
 
-  Stream<PullProgressEvent> pullModel(PullRequestOptions options) async* {
+  Stream<PullProgressEvent> pullModel(
+    PullRequestOptions options, {
+    CancelToken? cancelToken,
+  }) async* {
     logger.i('Pulling model ${options.modelName}');
     try {
       final response = await _dio.post<ResponseBody>(
         '$baseUrl/pull',
         data: options.toJson(),
         options: Options(responseType: ResponseType.stream),
+        cancelToken: cancelToken,
       );
 
       String buffer = '';
@@ -161,6 +165,10 @@ class LemonadeApiClient {
         }
       }
     } catch (e, stackTrace) {
+      if (e is DioException && CancelToken.isCancel(e)) {
+        logger.i('Pull cancelled for ${options.modelName}');
+        return;
+      }
       logger.e('Failed to pull model', error: e, stackTrace: stackTrace);
       yield PullProgressEvent(
         eventType: PullEventType.error,

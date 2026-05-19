@@ -671,16 +671,17 @@ class _ActiveDownloads extends StatelessWidget {
   }
 }
 
-class _DownloadRow extends StatelessWidget {
+class _DownloadRow extends ConsumerWidget {
   final String modelName;
   final PullProgressEvent event;
 
   const _DownloadRow({required this.modelName, required this.event});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final percent = event.percent ?? 0;
+    final inProgress = !event.isComplete && !event.isError;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -708,6 +709,25 @@ class _DownloadRow extends StatelessWidget {
                   color: theme.colorScheme.primary,
                 ),
               ),
+            if (inProgress) ...[
+              const SizedBox(width: 4),
+              IconButton(
+                icon: const Icon(Icons.close, size: 16),
+                tooltip: 'Cancel download',
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(
+                  minWidth: 28,
+                  minHeight: 28,
+                ),
+                color: theme.colorScheme.onSurfaceVariant,
+                onPressed: () {
+                  ref
+                      .read(pullProgressProvider.notifier)
+                      .cancelPull(modelName);
+                },
+              ),
+            ],
           ],
         ),
         const SizedBox(height: 4),
