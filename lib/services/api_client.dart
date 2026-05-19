@@ -7,6 +7,7 @@ import 'package:lemonade_controller/models/lemonade_unload_options.dart';
 import 'package:lemonade_controller/models/loaded_model.dart';
 import 'package:lemonade_controller/models/pull_progress_event.dart';
 import 'package:lemonade_controller/models/pull_request_options.dart';
+import 'package:lemonade_controller/models/pull_variants.dart';
 import 'package:lemonade_controller/utils/logger.dart';
 
 final logger = createLogger("api_client");
@@ -165,6 +166,31 @@ class LemonadeApiClient {
         eventType: PullEventType.error,
         errorMessage: 'Failed to pull model: $e',
       );
+    }
+  }
+
+  Future<PullVariants?> getPullVariants(String checkpoint) async {
+    logger.i('Fetching pull variants for $checkpoint');
+    try {
+      final response = await _dio.get(
+        '$baseUrl/pull/variants',
+        queryParameters: {'checkpoint': checkpoint},
+      );
+      return PullVariants.fromJson(
+        (response.data as Map).cast<String, dynamic>(),
+      );
+    } on DioException catch (e) {
+      logger.w(
+        'Pull variants lookup failed for $checkpoint: ${e.message}',
+      );
+      return null;
+    } catch (e, stackTrace) {
+      logger.w(
+        'Failed to parse pull variants for $checkpoint',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      return null;
     }
   }
 
