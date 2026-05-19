@@ -152,10 +152,17 @@ class SystemInfo {
   final String physicalMemory;
   final String processor;
   final CpuInfo cpu;
+
+  // Legacy fields (old API: separate amd_igpu, amd_dgpu, nvidia_dgpu)
   final GpuInfo? amdIgpu;
   final List<GpuInfo> amdDgpus;
   final NpuInfo? amdNpu;
   final List<GpuInfo> nvidiaDgpus;
+
+  // New API fields (consolidated amd_gpu array, renamed nvidia_gpu)
+  final List<GpuInfo> amdGpus;
+  final List<GpuInfo> nvidiaGpus;
+
   final Map<String, RecipeInfo> recipes;
 
   const SystemInfo({
@@ -167,6 +174,8 @@ class SystemInfo {
     this.amdDgpus = const [],
     this.amdNpu,
     this.nvidiaDgpus = const [],
+    this.amdGpus = const [],
+    this.nvidiaGpus = const [],
     this.recipes = const {},
   });
 
@@ -176,7 +185,24 @@ class SystemInfo {
     final recipesJson =
         (json['recipes'] as Map?)?.cast<String, dynamic>() ?? {};
 
-    // Parse AMD iGPU (single object)
+    // Parse CPU
+    final cpuJson =
+        (devices['cpu'] as Map?)?.cast<String, dynamic>() ?? {};
+
+    // -----------------------------------------------------------------------
+    // Parse AMD GPUs – support both old (separate) and new (consolidated) API
+    // -----------------------------------------------------------------------
+
+    // New API: amd_gpu is a single array containing all AMD GPUs
+    final amdGpus = <GpuInfo>[];
+    if (devices['amd_gpu'] is List) {
+      for (final item in devices['amd_gpu'] as List) {
+        final gpu = GpuInfo.fromJson((item as Map).cast<String, dynamic>());
+        if (gpu.available) amdGpus.add(gpu);
+      }
+    }
+
+    // Legacy API: amd_igpu (single object) + amd_dgpu (array)
     GpuInfo? amdIgpu;
     if (devices['amd_igpu'] is Map) {
       final igpu = GpuInfo.fromJson(
@@ -184,12 +210,33 @@ class SystemInfo {
       if (igpu.available) amdIgpu = igpu;
     }
 
-    // Parse AMD dGPUs (list)
     final amdDgpus = <GpuInfo>[];
     if (devices['amd_dgpu'] is List) {
       for (final item in devices['amd_dgpu'] as List) {
         final gpu = GpuInfo.fromJson((item as Map).cast<String, dynamic>());
         if (gpu.available) amdDgpus.add(gpu);
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // Parse NVIDIA GPUs – support both old and new API
+    // -----------------------------------------------------------------------
+
+    // New API: nvidia_gpu (array, renamed from nvidia_dgpu)
+    final nvidiaGpus = <GpuInfo>[];
+    if (devices['nvidia_gpu'] is List) {
+      for (final item in devices['nvidia_gpu'] as List) {
+        final gpu = GpuInfo.fromJson((item as Map).cast<String, dynamic>());
+        if (gpu.available) nvidiaGpus.add(gpu);
+      }
+    }
+
+    // Legacy API: nvidia_dgpu (array)
+    final nvidiaDgpus = <GpuInfo>[];
+    if (devices['nvidia_dgpu'] is List) {
+      for (final item in devices['nvidia_dgpu'] as List) {
+        final gpu = GpuInfo.fromJson((item as Map).cast<String, dynamic>());
+        if (gpu.available) nvidiaDgpus.add(gpu);
       }
     }
 
@@ -201,28 +248,19 @@ class SystemInfo {
       if (npu.available) amdNpu = npu;
     }
 
-    // Parse NVIDIA dGPUs (list)
-    final nvidiaDgpus = <GpuInfo>[];
-    if (devices['nvidia_dgpu'] is List) {
-      for (final item in devices['nvidia_dgpu'] as List) {
-        final gpu = GpuInfo.fromJson((item as Map).cast<String, dynamic>());
-        if (gpu.available) nvidiaDgpus.add(gpu);
-      }
-    }
-
-    // Parse CPU
-    final cpuJson =
-        (devices['cpu'] as Map?)?.cast<String, dynamic>() ?? {};
-
     return SystemInfo(
       osVersion: json['OS Version']?.toString() ?? '',
       physicalMemory: json['Physical Memory']?.toString() ?? '',
       processor: json['Processor']?.toString() ?? '',
       cpu: CpuInfo.fromJson(cpuJson),
+      // Legacy fields populated from old API keys
       amdIgpu: amdIgpu,
       amdDgpus: amdDgpus,
       amdNpu: amdNpu,
       nvidiaDgpus: nvidiaDgpus,
+      // New API fields populated from new API keys
+      amdGpus: amdGpus,
+      nvidiaGpus: nvidiaGpus,
       recipes: recipesJson.map(
         (key, value) => MapEntry(
           key,
@@ -232,7 +270,27 @@ class SystemInfo {
     );
   }
 
-  /// All available devices as a flat list of (label, description) pairs.
+  /// Returns all AMD GPUs, preferring the new consolidated [amdGpus] list
+  /// but falling back to legacy [amdIgpu] + [amdDgpus] for backwards
+  /// compatibility.
+  List<GpuInfo> get allAmdGpus =>
+      amdGpus.isNotEmpty ? amdGpus : _legacyAmdGpus;
+
+  /// Returns all NVIDIA GPUs, preferring the new [nvidiaGpus] list
+  /// but falling back to legacy [nvidiaDgpus] for backwards
+  /// compatibility.
+  List<GpuInfo> get allNvidiaGpus =>
+      nvidiaGpus.isNotEmpty ? nvidiaGpus : nvidiaDgpus;
+
+  List<GpuInfo> get _legacyAmdGpus {
+    final gpus = <GpuInfo>[];
+    if (amdIgpu != null) gpus.add(amdIgpu!);
+    gpus.addAll(amdDgpus);
+    return gpus;
+  }
+
+  /// All available devices as a flat list of (label, icon, detail) tuples.
+  /// Works with both old and new API responses.
   List<({String label, String icon, String detail})> get availableDevices {
     final result = <({String label, String icon, String detail})>[];
 
@@ -244,27 +302,24 @@ class SystemInfo {
       ));
     }
 
-    if (amdIgpu != null) {
+    // AMD GPUs – unified display for both old and new API
+    for (final gpu in allAmdGpus) {
+      // Determine if this is likely integrated (0.5 GB VRAM or less) or
+      // discrete based on VRAM heuristic when we don't have explicit info.
+      final isIntegrated = gpu.vramGb <= 0.5;
       result.add((
-        label: 'AMD iGPU',
+        label: isIntegrated ? 'AMD iGPU' : 'AMD dGPU',
         icon: 'gpu',
-        detail: '${amdIgpu!.name} (${amdIgpu!.family})',
+        detail: _gpuDetail(gpu),
       ));
     }
 
-    for (final gpu in amdDgpus) {
-      result.add((
-        label: 'AMD dGPU',
-        icon: 'gpu',
-        detail: '${gpu.name} (${gpu.family})',
-      ));
-    }
-
-    for (final gpu in nvidiaDgpus) {
+    // NVIDIA GPUs
+    for (final gpu in allNvidiaGpus) {
       result.add((
         label: 'NVIDIA GPU',
         icon: 'gpu',
-        detail: '${gpu.name}',
+        detail: _gpuDetail(gpu),
       ));
     }
 
@@ -277,5 +332,17 @@ class SystemInfo {
     }
 
     return result;
+  }
+
+  /// Format a human-readable GPU detail string.
+  static String _gpuDetail(GpuInfo gpu) {
+    final parts = <String>[gpu.name];
+    if (gpu.vramGb > 0) {
+      parts.add('${gpu.vramGb.toStringAsFixed(1)} GB VRAM');
+    }
+    if (gpu.family.isNotEmpty) {
+      parts.add(gpu.family);
+    }
+    return parts.join(' · ');
   }
 }
