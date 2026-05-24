@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lemonade_controller/models/lemonade_model.dart';
 import 'package:lemonade_controller/models/pull_progress_event.dart';
 import 'package:lemonade_controller/models/pull_request_options.dart';
 import 'package:lemonade_controller/models/pull_variants.dart';
@@ -210,10 +211,7 @@ class _PullPageState extends ConsumerState<PullPage> {
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
 
-    var modelName = _modelNameController.text.trim();
-    if (!modelName.startsWith('user.')) {
-      modelName = 'user.$modelName';
-    }
+    final modelName = _modelNameController.text.trim();
 
     final options = PullRequestOptions(
       modelName: modelName,
@@ -308,8 +306,6 @@ class _PullPageState extends ConsumerState<PullPage> {
                 decoration: InputDecoration(
                   labelText: 'Model Name',
                   hintText: 'e.g. Phi-4-Mini-GGUF',
-                  helperText: 'Will be prefixed with "user." automatically',
-                  prefixText: 'user.',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -690,7 +686,7 @@ class _DownloadRow extends ConsumerWidget {
           children: [
             Expanded(
               child: Text(
-                modelName.replaceFirst('user.', ''),
+                LemonadeModel.stripIdPrefix(modelName),
                 style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w600,
                 ),

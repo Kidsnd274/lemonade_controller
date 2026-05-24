@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lemonade_controller/models/lemonade_model.dart';
 import 'package:lemonade_controller/models/pull_progress_event.dart';
 import 'package:lemonade_controller/pages/home/widgets/dashboard_card.dart';
 import 'package:lemonade_controller/providers/api_providers.dart';
@@ -69,7 +70,7 @@ class _DownloadProgressRow extends ConsumerWidget {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                modelName.replaceFirst('user.', ''),
+                LemonadeModel.stripIdPrefix(modelName),
                 style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w600,
                 ),

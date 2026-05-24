@@ -75,19 +75,13 @@ class _Header extends StatelessWidget {
                 spacing: 8,
                 runSpacing: 6,
                 children: [
-                  if (model.isUserModel)
-                    _Badge(
-                      label: 'user',
-                      backgroundColor: theme.colorScheme.primary,
-                      foregroundColor: theme.colorScheme.onPrimary,
-                    ),
                   Text(
                     model.displayName,
                     style: theme.textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  if (model.isUserModel)
+                  if (model.quantization != 'Unknown')
                     _Badge(
                       label: model.quantization,
                       backgroundColor: quantizationColor(

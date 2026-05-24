@@ -239,7 +239,7 @@ class _ModelsPageState extends ConsumerState<ModelsPage> {
                                   size: 18,
                                   color: theme.colorScheme.primary,
                                 ),
-                          label: const Text('user.'),
+                          label: const Text('Custom'),
                           selected: _userFilter == UserModelFilter.userOnly,
                           materialTapTargetSize:
                               MaterialTapTargetSize.shrinkWrap,
@@ -249,7 +249,7 @@ class _ModelsPageState extends ConsumerState<ModelsPage> {
                         ),
                         const SizedBox(width: 8),
                         FilterChip(
-                          label: const Text('Non-user'),
+                          label: const Text('Built-in'),
                           selected: _userFilter == UserModelFilter.nonUserOnly,
                           onSelected: (_) => setState(
                             () => _userFilter = UserModelFilter.nonUserOnly,

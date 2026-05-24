@@ -468,7 +468,7 @@ class _ModelPickerDialogState extends State<_ModelPickerDialog> {
                               size: 18,
                               color: theme.colorScheme.primary,
                             ),
-                      label: const Text('user.'),
+                      label: const Text('Custom'),
                       selected: _userFilter == _UserFilter.userOnly,
                       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       onSelected: (_) =>
@@ -476,7 +476,7 @@ class _ModelPickerDialogState extends State<_ModelPickerDialog> {
                     ),
                     const SizedBox(width: 6),
                     FilterChip(
-                      label: const Text('Non-user'),
+                      label: const Text('Built-in'),
                       selected: _userFilter == _UserFilter.nonUserOnly,
                       onSelected: (_) =>
                           setState(() => _userFilter = _UserFilter.nonUserOnly),
@@ -666,22 +666,6 @@ class _PickerModelTile extends StatelessWidget {
       dense: true,
       title: Row(
         children: [
-          if (model.isUserModel) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                'user.',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onPrimary,
-                ),
-              ),
-            ),
-            const SizedBox(width: 4),
-          ],
           Flexible(
             child: Text(
               model.displayName,
@@ -691,7 +675,7 @@ class _PickerModelTile extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          if (model.isUserModel && model.quantization != 'Unknown') ...[
+          if (model.quantization != 'Unknown') ...[
             const SizedBox(width: 6),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),

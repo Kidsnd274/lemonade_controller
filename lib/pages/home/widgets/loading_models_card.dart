@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lemonade_controller/models/lemonade_model.dart';
 import 'package:lemonade_controller/pages/home/widgets/dashboard_card.dart';
 import 'package:lemonade_controller/providers/api_providers.dart';
 
@@ -38,7 +39,7 @@ class _LoadingModelRow extends StatelessWidget {
 
   const _LoadingModelRow({required this.modelId, required this.theme});
 
-  String get _displayName => modelId.replaceFirst('user.', '');
+  String get _displayName => LemonadeModel.stripIdPrefix(modelId);
 
   @override
   Widget build(BuildContext context) {

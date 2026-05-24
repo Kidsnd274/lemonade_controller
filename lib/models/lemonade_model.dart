@@ -67,12 +67,16 @@ class LemonadeModel {
   }
 
   static final _qLevelPattern = RegExp(r'Q(\d)');
+  static final _idPrefixPattern = RegExp(r'^(user|builtin)\.');
+
+  /// Strips legacy `user.` and current `builtin.` prefixes from a model id.
+  static String stripIdPrefix(String id) => id.replaceFirst(_idPrefixPattern, '');
 
   // Derived properties
-  String get displayName => id.replaceFirst('user.', '');
+  String get displayName => stripIdPrefix(id);
   String get quantization =>
       checkpoint.split(":").length > 1 ? checkpoint.split(':').last : 'Unknown';
-  bool get isUserModel => id.startsWith('user.');
+  bool get isUserModel => !id.startsWith('builtin.');
 
   /// Extracts the Q-level (1–8) from quantization strings like "Q6_K" or "UD-Q5_L_XL".
   int? get quantizationLevel {

@@ -92,22 +92,6 @@ class ModelCard extends ConsumerWidget {
         ),
         title: Row(
           children: [
-            if (model.isUserModel) ...[
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  'user.',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onPrimary,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 4),
-            ],
             Flexible(
               child: Text(
                 model.displayName,
@@ -115,7 +99,7 @@ class ModelCard extends ConsumerWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            if (model.isUserModel) ...[
+            if (model.quantization != 'Unknown') ...[
               const SizedBox(width: 4),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),

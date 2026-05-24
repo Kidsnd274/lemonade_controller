@@ -129,7 +129,7 @@ class _LoadedModelTile extends ConsumerWidget {
 
   static final _qLevelPattern = RegExp(r'Q(\d)');
 
-  String get _displayName => loadedModel.modelName.replaceFirst('user.', '');
+  String get _displayName => LemonadeModel.stripIdPrefix(loadedModel.modelName);
 
   String get _quantization => loadedModel.checkpoint.contains(':')
       ? loadedModel.checkpoint.split(':').last
