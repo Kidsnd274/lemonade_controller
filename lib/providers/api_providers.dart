@@ -42,6 +42,7 @@ class LoadingModelsNotifier extends StateNotifier<Set<String>> {
       if (result) {
         await _ref.read(loadedModelsProvider.notifier).updateState();
         _ref.invalidate(healthInfoProvider);
+        _ref.invalidate(modelsProvider);
       }
       return result;
     } finally {
