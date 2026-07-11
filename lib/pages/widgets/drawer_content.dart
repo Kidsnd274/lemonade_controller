@@ -6,18 +6,32 @@ class DrawerContent extends StatelessWidget {
   final List<NavItem> items;
   final int selectedIndex;
   final Function(int) onTap;
+  final int bottomItemCount;
 
   const DrawerContent({
     super.key,
     required this.items,
     required this.selectedIndex,
     required this.onTap,
+    this.bottomItemCount = 0,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final splitIndex = (items.length - bottomItemCount).clamp(0, items.length);
+
+    Widget navTile(int index) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: _NavTile(
+        item: items[index],
+        selected: selectedIndex == index,
+        colorScheme: colorScheme,
+        textTheme: theme.textTheme,
+        onTap: () => onTap(index),
+      ),
+    );
 
     return Column(
       children: [
@@ -26,21 +40,29 @@ class DrawerContent extends StatelessWidget {
         Expanded(
           child: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            children: [
-              for (var i = 0; i < items.length; i++)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: _NavTile(
-                    item: items[i],
-                    selected: selectedIndex == i,
-                    colorScheme: colorScheme,
-                    textTheme: theme.textTheme,
-                    onTap: () => onTap(i),
-                  ),
-                ),
-            ],
+            children: [for (var i = 0; i < splitIndex; i++) navTile(i)],
           ),
         ),
+        if (bottomItemCount > 0) ...[
+          Divider(
+            height: 1,
+            indent: 12,
+            endIndent: 12,
+            color: colorScheme.outlineVariant,
+          ),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (var i = splitIndex; i < items.length; i++) navTile(i),
+                ],
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }

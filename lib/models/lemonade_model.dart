@@ -1,3 +1,5 @@
+import 'package:lemonade_controller/utils/quantization.dart';
+
 class LemonadeModel {
   final String id;
   final String checkpoint;
@@ -86,8 +88,7 @@ class LemonadeModel {
 
   // Derived properties
   String get displayName => stripIdPrefix(id);
-  String get quantization =>
-      checkpoint.split(":").length > 1 ? checkpoint.split(':').last : 'Unknown';
+  String get quantization => extractQuantization(checkpoint);
   bool get isUserModel => !id.startsWith('builtin.');
 
   /// Extracts the Q-level (1–8) from quantization strings like "Q6_K" or "UD-Q5_L_XL".

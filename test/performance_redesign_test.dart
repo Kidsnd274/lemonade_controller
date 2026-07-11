@@ -254,6 +254,42 @@ void main() {
     expect(find.text('107 tok'), findsNWidgets(2));
     expect(find.text('11334 tok'), findsOneWidget);
   });
+
+  testWidgets('generation rate uses compact tk/s unit on mobile', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(430, 320));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    const state = PerformanceState(
+      loading: false,
+      requestStats: RequestStats(
+        tokensPerSecond: 41.6,
+        timeToFirstToken: 7.36,
+        inputTokens: 5997,
+        outputTokens: 9,
+        promptTokens: 12128,
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          performanceProvider.overrideWith(
+            (ref) => _StaticPerformanceNotifier(ref, state),
+          ),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: SizedBox(width: 430, child: RequestStatsCard(expand: true)),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('41.6 tk/s'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 SystemInfo _systemInfo({String memory = '', GpuInfo? gpu, NpuInfo? npu}) =>

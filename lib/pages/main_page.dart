@@ -31,6 +31,7 @@ class MainPage extends ConsumerStatefulWidget {
 
 class _MainPageState extends ConsumerState<MainPage>
     with WidgetsBindingObserver {
+  static const _bottomNavItemCount = 2;
   int _selectedIndex = 0;
 
   static final List<NavItem> _navItems = [
@@ -130,6 +131,7 @@ class _MainPageState extends ConsumerState<MainPage>
         child: DrawerContent(
           items: _navItems,
           selectedIndex: _selectedIndex,
+          bottomItemCount: _bottomNavItemCount,
           onTap: (index) {
             _selectPage(index);
             Navigator.pop(context);
@@ -142,26 +144,49 @@ class _MainPageState extends ConsumerState<MainPage>
 
   Widget _buildTabletLayout(Widget content) {
     final theme = Theme.of(context);
+    final primaryCount = _navItems.length - _bottomNavItemCount;
     return Scaffold(
       appBar: _buildAppBar(),
       body: Row(
         children: [
-          NavigationRail(
-            selectedIndex: _selectedIndex,
-            labelType: NavigationRailLabelType.all,
-            onDestinationSelected: _selectPage,
-            indicatorColor: theme.colorScheme.secondaryContainer,
-            backgroundColor: theme.colorScheme.surface,
-            minWidth: 72,
-            groupAlignment: -0.85,
-            destinations: [
-              for (final item in _navItems)
-                NavigationRailDestination(
-                  icon: Icon(item.icon),
-                  selectedIcon: Icon(item.selectedIcon),
-                  label: Text(item.title),
-                  padding: const EdgeInsets.symmetric(vertical: 4),
+          Column(
+            children: [
+              Expanded(
+                child: NavigationRail(
+                  selectedIndex: _selectedIndex < primaryCount
+                      ? _selectedIndex
+                      : null,
+                  labelType: NavigationRailLabelType.all,
+                  onDestinationSelected: _selectPage,
+                  indicatorColor: theme.colorScheme.secondaryContainer,
+                  backgroundColor: theme.colorScheme.surface,
+                  minWidth: 72,
+                  groupAlignment: -0.85,
+                  destinations: [
+                    for (final item in _navItems.take(primaryCount))
+                      _railDestination(item),
+                  ],
                 ),
+              ),
+              SizedBox(
+                height: 152,
+                child: NavigationRail(
+                  selectedIndex: _selectedIndex >= primaryCount
+                      ? _selectedIndex - primaryCount
+                      : null,
+                  labelType: NavigationRailLabelType.all,
+                  onDestinationSelected: (index) =>
+                      _selectPage(primaryCount + index),
+                  indicatorColor: theme.colorScheme.secondaryContainer,
+                  backgroundColor: theme.colorScheme.surface,
+                  minWidth: 72,
+                  groupAlignment: 0,
+                  destinations: [
+                    for (final item in _navItems.skip(primaryCount))
+                      _railDestination(item),
+                  ],
+                ),
+              ),
             ],
           ),
           VerticalDivider(
@@ -186,6 +211,7 @@ class _MainPageState extends ConsumerState<MainPage>
             child: DrawerContent(
               items: _navItems,
               selectedIndex: _selectedIndex,
+              bottomItemCount: _bottomNavItemCount,
               onTap: _selectPage,
             ),
           ),
@@ -231,5 +257,14 @@ class _MainPageState extends ConsumerState<MainPage>
 
   void _selectPage(int index) {
     setState(() => _selectedIndex = index);
+  }
+
+  NavigationRailDestination _railDestination(NavItem item) {
+    return NavigationRailDestination(
+      icon: Icon(item.icon),
+      selectedIcon: Icon(item.selectedIcon),
+      label: Text(item.title),
+      padding: const EdgeInsets.symmetric(vertical: 4),
+    );
   }
 }

@@ -1,0 +1,11 @@
+refactor: responsive UI redesign and shared quantization utility
+
+- Add shared extractQuantization() utility with regex-based parsing
+  and unit tests; migrate LemonadeModel and VRAM estimator to use it
+- Split navigation rail into primary and bottom sections on tablet
+- Pin Settings and Logs below primary navigation in drawer
+- Redesign models page filters for mobile with a dedicated sheet
+  and quantization color indicators; desktop retains inline dropdown
+- Add Apply/cancel flow so mobile filters commit only on Apply
+- Use compact "tk/s" unit on request stats card
+- Add Gradle JVM args flags to android/gradle.properties

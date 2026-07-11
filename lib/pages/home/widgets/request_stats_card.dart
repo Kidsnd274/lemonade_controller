@@ -74,7 +74,7 @@ class _InferenceSummary extends StatelessWidget {
                       label: 'Generation rate',
                       value: tokensPerSecond == null
                           ? '—'
-                          : '${tokensPerSecond!.toStringAsFixed(1)} tok/s',
+                          : '${tokensPerSecond!.toStringAsFixed(1)} tk/s',
                       icon: Icons.bolt_rounded,
                       emphasized: true,
                     ),

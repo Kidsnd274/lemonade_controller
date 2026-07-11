@@ -1,4 +1,5 @@
 import 'package:lemonade_controller/models/lemonade_model.dart';
+import 'package:lemonade_controller/utils/quantization.dart';
 
 export 'package:lemonade_controller/utils/format.dart';
 
@@ -149,12 +150,6 @@ VramEstimate? estimateVram({
     overheadGb: overheadGb,
     ctxSize: ctx,
   );
-}
-
-/// Tries to extract quantization from a checkpoint string (after the last ':').
-String extractQuantization(String checkpoint) {
-  final parts = checkpoint.split(':');
-  return parts.length > 1 ? parts.last : 'Unknown';
 }
 
 /// Attempts to estimate VRAM for a model identified only by its name/checkpoint
