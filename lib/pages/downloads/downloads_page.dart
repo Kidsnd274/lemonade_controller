@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/models/download_job.dart';
 import 'package:lemonade_controller/models/lemonade_model.dart';
+import 'package:lemonade_controller/pages/widgets/action_feedback.dart';
 import 'package:lemonade_controller/providers/api_providers.dart';
 import 'package:lemonade_controller/utils/format.dart';
 
@@ -142,32 +143,43 @@ class _DownloadCard extends ConsumerWidget {
               children: [
                 if (job.canPause)
                   TextButton.icon(
-                    onPressed: () => ref
-                        .read(downloadsProvider.notifier)
-                        .control(job, 'pause'),
+                    onPressed: () => runWithErrorFeedback(
+                      context,
+                      () => ref
+                          .read(downloadsProvider.notifier)
+                          .control(job, 'pause'),
+                    ),
                     icon: const Icon(Icons.pause),
                     label: const Text('Pause'),
                   ),
                 if (job.canResume)
                   TextButton.icon(
-                    onPressed: () =>
-                        ref.read(downloadsProvider.notifier).resume(job),
+                    onPressed: () => runWithErrorFeedback(
+                      context,
+                      () => ref.read(downloadsProvider.notifier).resume(job),
+                    ),
                     icon: const Icon(Icons.play_arrow),
                     label: const Text('Resume'),
                   ),
                 if (!job.isTerminal || job.running)
                   TextButton.icon(
-                    onPressed: () => ref
-                        .read(downloadsProvider.notifier)
-                        .control(job, 'cancel'),
+                    onPressed: () => runWithErrorFeedback(
+                      context,
+                      () => ref
+                          .read(downloadsProvider.notifier)
+                          .control(job, 'cancel'),
+                    ),
                     icon: const Icon(Icons.close),
                     label: const Text('Cancel'),
                   ),
                 if (!job.running)
                   TextButton.icon(
-                    onPressed: () => ref
-                        .read(downloadsProvider.notifier)
-                        .control(job, 'remove'),
+                    onPressed: () => runWithErrorFeedback(
+                      context,
+                      () => ref
+                          .read(downloadsProvider.notifier)
+                          .control(job, 'remove'),
+                    ),
                     icon: const Icon(Icons.delete_outline),
                     label: const Text('Remove'),
                   ),

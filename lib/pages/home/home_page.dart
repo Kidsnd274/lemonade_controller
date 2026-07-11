@@ -75,7 +75,10 @@ class _WideLayout extends StatelessWidget {
                         children: [
                           Expanded(child: PerformanceCard(expand: true)),
                           SizedBox(height: 12),
-                          Expanded(child: RequestStatsCard(expand: true)),
+                          // Size to content instead of stretching — the
+                          // inference metrics are fixed-size, so forcing them
+                          // to fill leaves a gap below the last row.
+                          RequestStatsCard(),
                         ],
                       ),
                     ),

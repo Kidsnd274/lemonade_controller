@@ -85,7 +85,9 @@ class _LogsPageState extends ConsumerState<LogsPage> {
                 ),
               ),
               DropdownButton<String?>(
-                value: _severity,
+                // Coerce a stale selection (e.g. after clearing logs) back to
+                // null so the value always matches exactly one item.
+                value: severities.contains(_severity) ? _severity : null,
                 hint: const Text('All severities'),
                 items: [
                   const DropdownMenuItem(
@@ -98,7 +100,7 @@ class _LogsPageState extends ConsumerState<LogsPage> {
                 onChanged: (value) => setState(() => _severity = value),
               ),
               DropdownButton<String?>(
-                value: _tag,
+                value: tags.contains(_tag) ? _tag : null,
                 hint: const Text('All tags'),
                 items: [
                   const DropdownMenuItem(value: null, child: Text('All tags')),

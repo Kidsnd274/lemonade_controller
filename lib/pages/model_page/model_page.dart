@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/models/lemonade_model.dart';
 import 'package:lemonade_controller/models/loaded_model.dart';
 import 'package:lemonade_controller/pages/model_page/configure_load_dialog.dart';
+import 'package:lemonade_controller/pages/widgets/action_feedback.dart';
 import 'package:lemonade_controller/providers/api_providers.dart';
 import 'package:lemonade_controller/providers/service_providers.dart';
 import 'package:lemonade_controller/utils/quantization_color.dart';
@@ -315,9 +316,12 @@ class _ActionButtons extends ConsumerWidget {
   void _configureAndLoad(BuildContext context, WidgetRef ref) async {
     final options = await showConfigureLoadDialog(context, model);
     if (options == null || !context.mounted) return;
-    ref
-        .read(loadingModelsProvider.notifier)
-        .loadModel(model.id, options: options);
+    await runWithErrorFeedback(
+      context,
+      () => ref
+          .read(loadingModelsProvider.notifier)
+          .loadModel(model.id, options: options),
+    );
   }
 
   Future<void> _updateModel(BuildContext context, WidgetRef ref) async {
@@ -352,7 +356,12 @@ class _ActionButtons extends ConsumerWidget {
             autofocus: true,
             onPressed: () {
               Navigator.of(ctx).pop();
-              ref.read(loadingModelsProvider.notifier).loadModel(model.id);
+              runWithErrorFeedback(
+                context,
+                () => ref
+                    .read(loadingModelsProvider.notifier)
+                    .loadModel(model.id),
+              );
             },
             child: const Text('Load'),
           ),
@@ -380,7 +389,12 @@ class _ActionButtons extends ConsumerWidget {
             ),
             onPressed: () {
               Navigator.of(ctx).pop();
-              ref.read(loadingModelsProvider.notifier).unloadModel(model.id);
+              runWithErrorFeedback(
+                context,
+                () => ref
+                    .read(loadingModelsProvider.notifier)
+                    .unloadModel(model.id),
+              );
             },
             child: const Text('Unload'),
           ),

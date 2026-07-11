@@ -265,6 +265,7 @@ class DownloadsNotifier extends StateNotifier<DownloadsState> {
     _fetching = true;
     try {
       final raw = await _api.getDownloads();
+      if (!mounted) return;
       final jobs = raw.map(_withSpeed).toList();
       final completedBefore = state.jobs
           .where((job) => job.complete)
@@ -276,8 +277,8 @@ class DownloadsNotifier extends StateNotifier<DownloadsState> {
       )) {
         _ref.invalidate(modelsProvider);
       }
-      _schedule();
     } on LemonadeApiException catch (error) {
+      if (!mounted) return;
       if (error.isUnsupported) {
         _ref
             .read(endpointCapabilitiesProvider.notifier)
@@ -291,8 +292,14 @@ class DownloadsNotifier extends StateNotifier<DownloadsState> {
         error: error.message,
         unsupported: error.isUnsupported,
       );
+    } catch (error) {
+      if (!mounted) return;
+      state = state.copyWith(loading: false, error: error.toString());
     } finally {
       _fetching = false;
+      // Always re-arm polling (unless disposed or the endpoint is genuinely
+      // unsupported) so a transient error doesn't permanently halt refresh.
+      if (mounted && !state.unsupported) _schedule();
     }
   }
 
@@ -441,6 +448,8 @@ class PerformanceNotifier extends StateNotifier<PerformanceState> {
                 'system-stats',
               );
         }
+      } catch (error) {
+        systemError = error.toString();
       }
     }
     if (!requestUnsupported) {
@@ -458,8 +467,14 @@ class PerformanceNotifier extends StateNotifier<PerformanceState> {
                 'request-stats',
               );
         }
+      } catch (error) {
+        requestError = error.toString();
       }
     }
+    _fetching = false;
+    // Bail if the notifier was disposed while awaiting, otherwise assigning
+    // state throws a use-after-dispose error and leaks a rescheduled timer.
+    if (!mounted) return;
     state = PerformanceState(
       samples: samples,
       requestStats: requestStats,
@@ -469,7 +484,6 @@ class PerformanceNotifier extends StateNotifier<PerformanceState> {
       requestUnsupported: requestUnsupported,
       loading: false,
     );
-    _fetching = false;
     _timer?.cancel();
     _timer = Timer(
       Duration(seconds: intervalSeconds.clamp(2, 3600).toInt()),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lemonade_controller/models/lemonade_model.dart';
 import 'package:lemonade_controller/pages/downloads/downloads_page.dart';
 import 'package:lemonade_controller/pages/home/widgets/dashboard_card.dart';
 import 'package:lemonade_controller/providers/api_providers.dart';
@@ -25,7 +26,9 @@ class DownloadProgressCard extends ConsumerWidget {
             for (final job in active) ...[
               Row(
                 children: [
-                  Expanded(child: Text(job.modelName)),
+                  Expanded(
+                    child: Text(LemonadeModel.stripIdPrefix(job.modelName)),
+                  ),
                   Text('${job.percent.toStringAsFixed(0)}%'),
                 ],
               ),

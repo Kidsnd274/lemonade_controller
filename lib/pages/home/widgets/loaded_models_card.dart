@@ -4,6 +4,7 @@ import 'package:lemonade_controller/models/lemonade_model.dart';
 import 'package:lemonade_controller/models/loaded_model.dart';
 import 'package:lemonade_controller/pages/home/widgets/dashboard_card.dart';
 import 'package:lemonade_controller/pages/model_page/model_page.dart';
+import 'package:lemonade_controller/pages/widgets/action_feedback.dart';
 import 'package:lemonade_controller/providers/api_providers.dart';
 import 'package:lemonade_controller/utils/quantization_color.dart';
 
@@ -419,7 +420,10 @@ class _UnloadAction extends ConsumerWidget {
       onPressed: () async {
         final confirmed = await _showUnloadConfirmation(context, displayName);
         if (confirmed == true && context.mounted) {
-          ref.read(loadingModelsProvider.notifier).unloadModel(modelName);
+          await runWithErrorFeedback(
+            context,
+            () => ref.read(loadingModelsProvider.notifier).unloadModel(modelName),
+          );
         }
       },
       icon: const Icon(Icons.stop_circle_outlined),

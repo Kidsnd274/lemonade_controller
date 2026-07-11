@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/models/lemonade_model.dart';
 import 'package:lemonade_controller/pages/model_page/model_page.dart';
+import 'package:lemonade_controller/pages/widgets/action_feedback.dart';
 import 'package:lemonade_controller/providers/api_providers.dart';
 import 'package:lemonade_controller/providers/service_providers.dart';
 import 'package:lemonade_controller/utils/quantization_color.dart';
@@ -197,9 +198,12 @@ class ModelCard extends ConsumerWidget {
                   FocusScope.of(context).unfocus();
                   final confirmed = await _showUnloadConfirmation(context);
                   if (confirmed == true && context.mounted) {
-                    ref
-                        .read(loadingModelsProvider.notifier)
-                        .unloadModel(model.id);
+                    await runWithErrorFeedback(
+                      context,
+                      () => ref
+                          .read(loadingModelsProvider.notifier)
+                          .unloadModel(model.id),
+                    );
                   }
                 },
                 icon: const Icon(Icons.stop_circle_outlined),
@@ -211,9 +215,12 @@ class ModelCard extends ConsumerWidget {
                   FocusScope.of(context).unfocus();
                   final confirmed = await _showLoadConfirmation(context);
                   if (confirmed == true && context.mounted) {
-                    ref
-                        .read(loadingModelsProvider.notifier)
-                        .loadModel(model.id);
+                    await runWithErrorFeedback(
+                      context,
+                      () => ref
+                          .read(loadingModelsProvider.notifier)
+                          .loadModel(model.id),
+                    );
                   }
                 },
                 icon: const Icon(Icons.play_arrow),
