@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/pages/home/widgets/dashboard_card.dart';
+import 'package:lemonade_controller/pages/home/widgets/inference_activity_panel.dart';
 import 'package:lemonade_controller/providers/api_providers.dart';
+import 'package:lemonade_controller/providers/inference_activity_provider.dart';
 import 'package:lemonade_controller/providers/service_providers.dart';
 import 'package:lemonade_controller/services/settings_service.dart';
 
@@ -112,6 +114,7 @@ class ServerStatusCard extends ConsumerWidget {
                 loadedCount: loadedCount,
                 pinnedCount: pinnedCount,
               ),
+              const _InferenceActivitySection(),
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -152,6 +155,24 @@ class ServerStatusCard extends ConsumerWidget {
         error: (err, _) => _ErrorContent(error: err.toString()),
         loading: () => const _LoadingContent(),
       ),
+    );
+  }
+}
+
+class _InferenceActivitySection extends ConsumerWidget {
+  const _InferenceActivitySection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isForeground = ref.watch(appForegroundProvider);
+    if (!isForeground) return const SizedBox.shrink();
+
+    final activity = ref.watch(inferenceActivityProvider);
+    if (!activity.shouldShow) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: InferenceActivityPanel(activity: activity),
     );
   }
 }
