@@ -54,70 +54,74 @@ class _InferenceSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IntrinsicHeight(
-            child: Row(
-              children: [
-                Expanded(
-                  child: _InferenceMetric(
-                    label: 'Generation rate',
-                    value: tokensPerSecond == null
-                        ? '—'
-                        : '${tokensPerSecond!.toStringAsFixed(1)} tok/s',
-                    icon: Icons.bolt_rounded,
-                    emphasized: true,
+    return Padding(
+      // Keep the anti-aliased bottom border clear of the card's clip edge.
+      padding: const EdgeInsets.only(bottom: 1),
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IntrinsicHeight(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _InferenceMetric(
+                      label: 'Generation rate',
+                      value: tokensPerSecond == null
+                          ? '—'
+                          : '${tokensPerSecond!.toStringAsFixed(1)} tok/s',
+                      icon: Icons.bolt_rounded,
+                      emphasized: true,
+                    ),
                   ),
-                ),
-                const VerticalDivider(width: 1),
-                Expanded(
-                  child: _InferenceMetric(
-                    label: 'Time to first token',
-                    value: timeToFirstToken == null
-                        ? '—'
-                        : '${timeToFirstToken!.toStringAsFixed(2)} s',
-                    icon: Icons.timer_outlined,
-                    emphasized: true,
+                  const VerticalDivider(width: 1),
+                  Expanded(
+                    child: _InferenceMetric(
+                      label: 'Time to first token',
+                      value: timeToFirstToken == null
+                          ? '—'
+                          : '${timeToFirstToken!.toStringAsFixed(2)} s',
+                      icon: Icons.timer_outlined,
+                      emphasized: true,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const Divider(height: 1),
-          IntrinsicHeight(
-            child: Row(
-              children: [
-                Expanded(
-                  child: _InferenceMetric(
-                    label: 'Input',
-                    value: _tokens(inputTokens),
+            const Divider(height: 1),
+            IntrinsicHeight(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _InferenceMetric(
+                      label: 'Input',
+                      value: _tokens(inputTokens),
+                    ),
                   ),
-                ),
-                const VerticalDivider(width: 1),
-                Expanded(
-                  child: _InferenceMetric(
-                    label: 'Output',
-                    value: _tokens(outputTokens),
+                  const VerticalDivider(width: 1),
+                  Expanded(
+                    child: _InferenceMetric(
+                      label: 'Output',
+                      value: _tokens(outputTokens),
+                    ),
                   ),
-                ),
-                const VerticalDivider(width: 1),
-                Expanded(
-                  child: _InferenceMetric(
-                    label: 'Prompt',
-                    value: _tokens(promptTokens),
+                  const VerticalDivider(width: 1),
+                  Expanded(
+                    child: _InferenceMetric(
+                      label: 'Prompt',
+                      value: _tokens(promptTokens),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
