@@ -10,27 +10,35 @@ import 'package:shared_preferences/shared_preferences.dart';
 class AppSettings {
   static const defaultBaseUrl = 'http://localhost:8020/api/v1';
   static const defaultAutoRefreshIntervalSeconds = 60;
+  static const defaultPerformanceSampleIntervalSeconds = 5;
+  static const minAutoRefreshIntervalSeconds = 10;
+  static const minPerformanceSampleIntervalSeconds = 2;
 
   final ThemeMode themeMode;
   final double uiScale;
   final bool autoRefreshEnabled;
   final int autoRefreshIntervalSeconds;
+  final int performanceSampleIntervalSeconds;
   final List<ServerProfile> serverProfiles;
   final String activeProfileId;
   final Set<String> favouriteModelIds;
   final List<ModelLoadPreset> modelLoadPresets;
   final Map<String, double> modelParamOverrides;
+  final Set<String> dismissedCompatibilityWarnings;
 
   const AppSettings({
     this.themeMode = ThemeMode.system,
     this.uiScale = 1.0,
     this.autoRefreshEnabled = false,
     this.autoRefreshIntervalSeconds = defaultAutoRefreshIntervalSeconds,
+    this.performanceSampleIntervalSeconds =
+        defaultPerformanceSampleIntervalSeconds,
     this.serverProfiles = const [],
     this.activeProfileId = 'default',
     this.favouriteModelIds = const {},
     this.modelLoadPresets = const [],
     this.modelParamOverrides = const {},
+    this.dismissedCompatibilityWarnings = const {},
   });
 
   ServerProfile get activeProfile {
@@ -44,16 +52,18 @@ class AppSettings {
   String get baseUrl => activeProfile.baseUrl;
 
   Map<String, dynamic> toJson() => {
-        'themeMode': themeMode.name,
-        'uiScale': uiScale,
-        'autoRefreshEnabled': autoRefreshEnabled,
-        'autoRefreshIntervalSeconds': autoRefreshIntervalSeconds,
-        'serverProfiles': serverProfiles.map((p) => p.toJson()).toList(),
-        'activeProfileId': activeProfileId,
-        'favouriteModelIds': favouriteModelIds.toList(),
-        'modelLoadPresets': modelLoadPresets.map((p) => p.toJson()).toList(),
-        'modelParamOverrides': modelParamOverrides,
-      };
+    'themeMode': themeMode.name,
+    'uiScale': uiScale,
+    'autoRefreshEnabled': autoRefreshEnabled,
+    'autoRefreshIntervalSeconds': autoRefreshIntervalSeconds,
+    'performanceSampleIntervalSeconds': performanceSampleIntervalSeconds,
+    'serverProfiles': serverProfiles.map((p) => p.toJson()).toList(),
+    'activeProfileId': activeProfileId,
+    'favouriteModelIds': favouriteModelIds.toList(),
+    'modelLoadPresets': modelLoadPresets.map((p) => p.toJson()).toList(),
+    'modelParamOverrides': modelParamOverrides,
+    'dismissedCompatibilityWarnings': dismissedCompatibilityWarnings.toList(),
+  };
 
   factory AppSettings.fromJson(Map<String, dynamic> json) {
     return AppSettings(
@@ -64,30 +74,41 @@ class AppSettings {
       uiScale: (json['uiScale'] as num?)?.toDouble() ?? 1.0,
       autoRefreshEnabled: json['autoRefreshEnabled'] as bool? ?? false,
       autoRefreshIntervalSeconds:
-          json['autoRefreshIntervalSeconds'] as int? ??
-              defaultAutoRefreshIntervalSeconds,
-      serverProfiles: (json['serverProfiles'] as List<dynamic>?)
-              ?.map(
-                (e) => ServerProfile.fromJson(e as Map<String, dynamic>),
-              )
+          ((json['autoRefreshIntervalSeconds'] as num?)?.toInt() ??
+                  defaultAutoRefreshIntervalSeconds)
+              .clamp(minAutoRefreshIntervalSeconds, 86400)
+              .toInt(),
+      performanceSampleIntervalSeconds:
+          ((json['performanceSampleIntervalSeconds'] as num?)?.toInt() ??
+                  defaultPerformanceSampleIntervalSeconds)
+              .clamp(minPerformanceSampleIntervalSeconds, 3600)
+              .toInt(),
+      serverProfiles:
+          (json['serverProfiles'] as List<dynamic>?)
+              ?.map((e) => ServerProfile.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
       activeProfileId: json['activeProfileId'] as String? ?? 'default',
-      favouriteModelIds: (json['favouriteModelIds'] as List<dynamic>?)
+      favouriteModelIds:
+          (json['favouriteModelIds'] as List<dynamic>?)
               ?.map((e) => e as String)
               .toSet() ??
           {},
-      modelLoadPresets: (json['modelLoadPresets'] as List<dynamic>?)
-              ?.map(
-                (e) => ModelLoadPreset.fromJson(e as Map<String, dynamic>),
-              )
+      modelLoadPresets:
+          (json['modelLoadPresets'] as List<dynamic>?)
+              ?.map((e) => ModelLoadPreset.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
       modelParamOverrides:
           (json['modelParamOverrides'] as Map<String, dynamic>?)?.map(
-                (k, v) => MapEntry(k, (v as num).toDouble()),
-              ) ??
-              {},
+            (k, v) => MapEntry(k, (v as num).toDouble()),
+          ) ??
+          {},
+      dismissedCompatibilityWarnings:
+          (json['dismissedCompatibilityWarnings'] as List?)
+              ?.map((value) => value.toString())
+              .toSet() ??
+          {},
     );
   }
 
@@ -96,11 +117,13 @@ class AppSettings {
     double? uiScale,
     bool? autoRefreshEnabled,
     int? autoRefreshIntervalSeconds,
+    int? performanceSampleIntervalSeconds,
     List<ServerProfile>? serverProfiles,
     String? activeProfileId,
     Set<String>? favouriteModelIds,
     List<ModelLoadPreset>? modelLoadPresets,
     Map<String, double>? modelParamOverrides,
+    Set<String>? dismissedCompatibilityWarnings,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
@@ -108,11 +131,16 @@ class AppSettings {
       autoRefreshEnabled: autoRefreshEnabled ?? this.autoRefreshEnabled,
       autoRefreshIntervalSeconds:
           autoRefreshIntervalSeconds ?? this.autoRefreshIntervalSeconds,
+      performanceSampleIntervalSeconds:
+          performanceSampleIntervalSeconds ??
+          this.performanceSampleIntervalSeconds,
       serverProfiles: serverProfiles ?? this.serverProfiles,
       activeProfileId: activeProfileId ?? this.activeProfileId,
       favouriteModelIds: favouriteModelIds ?? this.favouriteModelIds,
       modelLoadPresets: modelLoadPresets ?? this.modelLoadPresets,
       modelParamOverrides: modelParamOverrides ?? this.modelParamOverrides,
+      dismissedCompatibilityWarnings:
+          dismissedCompatibilityWarnings ?? this.dismissedCompatibilityWarnings,
     );
   }
 
@@ -124,16 +152,19 @@ class AppSettings {
           uiScale == other.uiScale &&
           autoRefreshEnabled == other.autoRefreshEnabled &&
           autoRefreshIntervalSeconds == other.autoRefreshIntervalSeconds &&
+          performanceSampleIntervalSeconds ==
+              other.performanceSampleIntervalSeconds &&
           activeProfileId == other.activeProfileId &&
           _profileListEquals(serverProfiles, other.serverProfiles) &&
           _setEquals(favouriteModelIds, other.favouriteModelIds) &&
           _presetListEquals(modelLoadPresets, other.modelLoadPresets) &&
-          _doubleMapEquals(modelParamOverrides, other.modelParamOverrides);
+          _doubleMapEquals(modelParamOverrides, other.modelParamOverrides) &&
+          _setEquals(
+            dismissedCompatibilityWarnings,
+            other.dismissedCompatibilityWarnings,
+          );
 
-  static bool _profileListEquals(
-    List<ServerProfile> a,
-    List<ServerProfile> b,
-  ) {
+  static bool _profileListEquals(List<ServerProfile> a, List<ServerProfile> b) {
     if (a.length != b.length) return false;
     for (var i = 0; i < a.length; i++) {
       if (a[i] != b[i]) return false;
@@ -167,31 +198,36 @@ class AppSettings {
 
   @override
   int get hashCode => Object.hash(
-        themeMode,
-        uiScale,
-        autoRefreshEnabled,
-        autoRefreshIntervalSeconds,
-        activeProfileId,
-        Object.hashAll(serverProfiles),
-        Object.hashAll(favouriteModelIds),
-        Object.hashAll(modelLoadPresets),
-        Object.hashAll(
-          modelParamOverrides.entries.map((e) => Object.hash(e.key, e.value)),
-        ),
-      );
+    themeMode,
+    uiScale,
+    autoRefreshEnabled,
+    autoRefreshIntervalSeconds,
+    performanceSampleIntervalSeconds,
+    activeProfileId,
+    Object.hashAll(serverProfiles),
+    Object.hashAll(favouriteModelIds),
+    Object.hashAll(modelLoadPresets),
+    Object.hashAll(
+      modelParamOverrides.entries.map((e) => Object.hash(e.key, e.value)),
+    ),
+    Object.hashAll(dismissedCompatibilityWarnings),
+  );
 }
 
 class SettingsNotifier extends AsyncNotifier<AppSettings> {
   static const _keyThemeMode = 'theme_mode';
   static const _keyAutoRefreshEnabled = 'auto_refresh_enabled';
-  static const _keyAutoRefreshIntervalSeconds =
-      'auto_refresh_interval_seconds';
+  static const _keyAutoRefreshIntervalSeconds = 'auto_refresh_interval_seconds';
+  static const _keyPerformanceSampleIntervalSeconds =
+      'performance_sample_interval_seconds';
   static const _keyServerProfiles = 'server_profiles';
   static const _keyActiveProfileId = 'active_profile_id';
   static const _keyFavouriteModelIds = 'favourite_model_ids';
   static const _keyModelLoadPresets = 'model_load_presets';
   static const _keyUiScale = 'ui_scale';
   static const _keyModelParamOverrides = 'model_param_overrides';
+  static const _keyDismissedCompatibilityWarnings =
+      'dismissed_compatibility_warnings';
 
   // Legacy key for migration
   static const _keyBaseUrl = 'base_url';
@@ -245,8 +281,9 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
         prefs.getStringList(_keyFavouriteModelIds)?.toSet() ?? {};
 
     final presetsJson = prefs.getString(_keyModelLoadPresets);
-    final presets =
-        presetsJson != null ? ModelLoadPreset.decodeList(presetsJson) : <ModelLoadPreset>[];
+    final presets = presetsJson != null
+        ? ModelLoadPreset.decodeList(presetsJson)
+        : <ModelLoadPreset>[];
 
     Map<String, double> modelParamOverrides;
     final overridesJson = prefs.getString(_keyModelParamOverrides);
@@ -271,19 +308,27 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
       uiScale: prefs.getDouble(_keyUiScale) ?? 1.0,
       autoRefreshEnabled: prefs.getBool(_keyAutoRefreshEnabled) ?? false,
       autoRefreshIntervalSeconds:
-          prefs.getInt(_keyAutoRefreshIntervalSeconds) ??
-              AppSettings.defaultAutoRefreshIntervalSeconds,
+          (prefs.getInt(_keyAutoRefreshIntervalSeconds) ??
+                  AppSettings.defaultAutoRefreshIntervalSeconds)
+              .clamp(AppSettings.minAutoRefreshIntervalSeconds, 86400)
+              .toInt(),
+      performanceSampleIntervalSeconds:
+          (prefs.getInt(_keyPerformanceSampleIntervalSeconds) ??
+                  AppSettings.defaultPerformanceSampleIntervalSeconds)
+              .clamp(AppSettings.minPerformanceSampleIntervalSeconds, 3600)
+              .toInt(),
       serverProfiles: profiles,
       activeProfileId: activeId,
       favouriteModelIds: favouriteIds,
       modelLoadPresets: presets,
       modelParamOverrides: modelParamOverrides,
+      dismissedCompatibilityWarnings:
+          prefs.getStringList(_keyDismissedCompatibilityWarnings)?.toSet() ??
+          {},
     );
   }
 
-  Future<void> modify(
-    AppSettings Function(AppSettings current) updater,
-  ) async {
+  Future<void> modify(AppSettings Function(AppSettings current) updater) async {
     final current = state.requireValue;
     final next = updater(current);
     if (next == current) return;
@@ -296,6 +341,10 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
       prefs.setInt(
         _keyAutoRefreshIntervalSeconds,
         next.autoRefreshIntervalSeconds,
+      ),
+      prefs.setInt(
+        _keyPerformanceSampleIntervalSeconds,
+        next.performanceSampleIntervalSeconds,
       ),
       prefs.setString(
         _keyServerProfiles,
@@ -314,6 +363,10 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
         _keyModelParamOverrides,
         jsonEncode(next.modelParamOverrides),
       ),
+      prefs.setStringList(
+        _keyDismissedCompatibilityWarnings,
+        next.dismissedCompatibilityWarnings.toList(),
+      ),
     ]);
     state = AsyncData(next);
   }
@@ -329,19 +382,28 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
   }
 
   Future<void> updateProfile(ServerProfile updated) async {
-    await modify((s) => s.copyWith(
-          serverProfiles:
-              s.serverProfiles.map((p) => p.id == updated.id ? updated : p).toList(),
-        ));
+    await modify(
+      (s) => s.copyWith(
+        serverProfiles: s.serverProfiles
+            .map((p) => p.id == updated.id ? updated : p)
+            .toList(),
+      ),
+    );
   }
 
   Future<void> removeProfile(String profileId) async {
     await modify((s) {
-      final remaining = s.serverProfiles.where((p) => p.id != profileId).toList();
+      final remaining = s.serverProfiles
+          .where((p) => p.id != profileId)
+          .toList();
       if (remaining.isEmpty) return s;
-      final newActiveId =
-          s.activeProfileId == profileId ? remaining.first.id : s.activeProfileId;
-      return s.copyWith(serverProfiles: remaining, activeProfileId: newActiveId);
+      final newActiveId = s.activeProfileId == profileId
+          ? remaining.first.id
+          : s.activeProfileId;
+      return s.copyWith(
+        serverProfiles: remaining,
+        activeProfileId: newActiveId,
+      );
     });
   }
 
@@ -352,18 +414,23 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
   }
 
   Future<void> updatePreset(ModelLoadPreset updated) async {
-    await modify((s) => s.copyWith(
-          modelLoadPresets: s.modelLoadPresets
-              .map((p) => p.id == updated.id ? updated : p)
-              .toList(),
-        ));
+    await modify(
+      (s) => s.copyWith(
+        modelLoadPresets: s.modelLoadPresets
+            .map((p) => p.id == updated.id ? updated : p)
+            .toList(),
+      ),
+    );
   }
 
   Future<void> removePreset(String presetId) async {
-    await modify((s) => s.copyWith(
-          modelLoadPresets:
-              s.modelLoadPresets.where((p) => p.id != presetId).toList(),
-        ));
+    await modify(
+      (s) => s.copyWith(
+        modelLoadPresets: s.modelLoadPresets
+            .where((p) => p.id != presetId)
+            .toList(),
+      ),
+    );
   }
 
   Future<void> toggleFavourite(String modelId) async {
@@ -371,6 +438,17 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
       final updated = Set<String>.of(s.favouriteModelIds);
       if (!updated.remove(modelId)) updated.add(modelId);
       return s.copyWith(favouriteModelIds: updated);
+    });
+  }
+
+  Future<void> dismissCompatibilityWarning(
+    String profileId,
+    String version,
+  ) async {
+    await modify((settings) {
+      final dismissed = {...settings.dismissedCompatibilityWarnings};
+      dismissed.add('$profileId@$version');
+      return settings.copyWith(dismissedCompatibilityWarnings: dismissed);
     });
   }
 
@@ -392,6 +470,10 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
         _keyAutoRefreshIntervalSeconds,
         imported.autoRefreshIntervalSeconds,
       ),
+      prefs.setInt(
+        _keyPerformanceSampleIntervalSeconds,
+        imported.performanceSampleIntervalSeconds,
+      ),
       prefs.setString(
         _keyServerProfiles,
         ServerProfile.encodeList(imported.serverProfiles),
@@ -408,6 +490,10 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
       prefs.setString(
         _keyModelParamOverrides,
         jsonEncode(imported.modelParamOverrides),
+      ),
+      prefs.setStringList(
+        _keyDismissedCompatibilityWarnings,
+        imported.dismissedCompatibilityWarnings.toList(),
       ),
     ]);
     state = AsyncData(imported);
@@ -436,5 +522,6 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
   }
 }
 
-final settingsProvider =
-    AsyncNotifierProvider<SettingsNotifier, AppSettings>(SettingsNotifier.new);
+final settingsProvider = AsyncNotifierProvider<SettingsNotifier, AppSettings>(
+  SettingsNotifier.new,
+);

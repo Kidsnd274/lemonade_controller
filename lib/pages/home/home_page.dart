@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:lemonade_controller/pages/home/widgets/download_progress_card.dart';
 import 'package:lemonade_controller/pages/home/widgets/loaded_models_card.dart';
 import 'package:lemonade_controller/pages/home/widgets/loading_models_card.dart';
+import 'package:lemonade_controller/pages/home/widgets/performance_card.dart';
+import 'package:lemonade_controller/pages/home/widgets/request_stats_card.dart';
 import 'package:lemonade_controller/pages/home/widgets/recipes_card.dart';
 import 'package:lemonade_controller/pages/home/widgets/server_status_card.dart';
 import 'package:lemonade_controller/pages/home/widgets/system_specs_card.dart';
@@ -34,6 +36,10 @@ class _MobileLayout extends StatelessWidget {
         DownloadProgressCard(),
         LoadedModelsCard(),
         SizedBox(height: 8),
+        PerformanceCard(),
+        SizedBox(height: 8),
+        RequestStatsCard(),
+        SizedBox(height: 8),
         SystemSpecsCard(),
         SizedBox(height: 8),
         RecipesCard(),
@@ -57,16 +63,30 @@ class _WideLayout extends StatelessWidget {
               const SizedBox(height: 12),
               const LoadingModelsCard(),
               const DownloadProgressCard(),
-              IntrinsicHeight(
+              SizedBox(
+                height: 464,
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: const [
-                    Expanded(child: LoadedModelsCard()),
+                    Expanded(child: LoadedModelsCard(expand: true)),
                     SizedBox(width: 12),
-                    Expanded(child: SystemSpecsCard()),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          Expanded(child: PerformanceCard(expand: true)),
+                          SizedBox(height: 12),
+                          // Size to content instead of stretching — the
+                          // inference metrics are fixed-size, so forcing them
+                          // to fill leaves a gap below the last row.
+                          RequestStatsCard(),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
+              const SizedBox(height: 12),
+              const SystemSpecsCard(),
               const SizedBox(height: 12),
               const RecipesCard(),
               const SizedBox(height: 16),

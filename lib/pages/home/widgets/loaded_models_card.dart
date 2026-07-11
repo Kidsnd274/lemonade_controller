@@ -4,6 +4,7 @@ import 'package:lemonade_controller/models/lemonade_model.dart';
 import 'package:lemonade_controller/models/loaded_model.dart';
 import 'package:lemonade_controller/pages/home/widgets/dashboard_card.dart';
 import 'package:lemonade_controller/pages/model_page/model_page.dart';
+import 'package:lemonade_controller/pages/widgets/action_feedback.dart';
 import 'package:lemonade_controller/providers/api_providers.dart';
 import 'package:lemonade_controller/utils/quantization_color.dart';
 
@@ -39,7 +40,9 @@ Future<bool?> _showUnloadConfirmation(
 // ---------------------------------------------------------------------------
 
 class LoadedModelsCard extends ConsumerWidget {
-  const LoadedModelsCard({super.key});
+  final bool expand;
+
+  const LoadedModelsCard({super.key, this.expand = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -49,12 +52,16 @@ class LoadedModelsCard extends ConsumerWidget {
       title: 'Loaded Models',
       icon: Icons.model_training,
       contentPadding: const EdgeInsets.all(8),
+      expandContent: expand,
       child: healthAsync.when(
         data: (health) {
           if (health.allModelsLoaded.isEmpty) {
             return const _EmptyState();
           }
-          return _LoadedModelsList(models: health.allModelsLoaded);
+          return _LoadedModelsList(
+            models: health.allModelsLoaded,
+            scrollable: expand,
+          );
         },
         error: (err, _) => _ErrorRow(error: err.toString()),
         loading: () => const _LoadingIndicator(),
@@ -102,11 +109,20 @@ class _EmptyState extends StatelessWidget {
 
 class _LoadedModelsList extends StatelessWidget {
   final List<LoadedModel> models;
+  final bool scrollable;
 
-  const _LoadedModelsList({required this.models});
+  const _LoadedModelsList({required this.models, required this.scrollable});
 
   @override
   Widget build(BuildContext context) {
+    if (scrollable) {
+      return ListView.separated(
+        padding: EdgeInsets.zero,
+        itemCount: models.length,
+        separatorBuilder: (_, _) => const Divider(height: 16),
+        itemBuilder: (_, index) => _LoadedModelTile(loadedModel: models[index]),
+      );
+    }
     return Column(
       children: [
         for (int i = 0; i < models.length; i++) ...[
@@ -176,9 +192,7 @@ class _LoadedModelTile extends ConsumerWidget {
       borderRadius: BorderRadius.circular(8),
       onTap: () => Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => ModelPage(model: _resolveModel(ref)),
-        ),
+        MaterialPageRoute(builder: (_) => ModelPage(model: _resolveModel(ref))),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -197,6 +211,14 @@ class _LoadedModelTile extends ConsumerWidget {
                 type: loadedModel.type,
               ),
             ),
+            if (loadedModel.pinned)
+              const Padding(
+                padding: EdgeInsets.only(right: 4),
+                child: Tooltip(
+                  message: 'Pinned in memory',
+                  child: Icon(Icons.push_pin, size: 18),
+                ),
+              ),
             const SizedBox(width: 8),
             _UnloadAction(
               isUnloading: isUnloading,
@@ -398,7 +420,10 @@ class _UnloadAction extends ConsumerWidget {
       onPressed: () async {
         final confirmed = await _showUnloadConfirmation(context, displayName);
         if (confirmed == true && context.mounted) {
-          ref.read(loadingModelsProvider.notifier).unloadModel(modelName);
+          await runWithErrorFeedback(
+            context,
+            () => ref.read(loadingModelsProvider.notifier).unloadModel(modelName),
+          );
         }
       },
       icon: const Icon(Icons.stop_circle_outlined),

@@ -1,16 +1,10 @@
 class LemonadeUnloadOptionsModel {
   final String modelName;
 
-  LemonadeUnloadOptionsModel({
-    required this.modelName,
-  });
+  LemonadeUnloadOptionsModel({required this.modelName});
 
-  LemonadeUnloadOptionsModel copyWith({
-    String? modelName,
-  }) {
-    return LemonadeUnloadOptionsModel(
-      modelName: modelName ?? this.modelName,
-    );
+  LemonadeUnloadOptionsModel copyWith({String? modelName}) {
+    return LemonadeUnloadOptionsModel(modelName: modelName ?? this.modelName);
   }
 
   // Factory constructor for JSON deserialization
@@ -22,9 +16,7 @@ class LemonadeUnloadOptionsModel {
 
   // Converts model to JSON map
   Map<String, dynamic> toJson() {
-    return {
-      'model_name': modelName,
-    };
+    return {'model_name': modelName};
   }
 
   @override

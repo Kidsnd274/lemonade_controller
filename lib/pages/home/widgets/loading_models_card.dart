@@ -22,10 +22,7 @@ class LoadingModelsCard extends ConsumerWidget {
         children: [
           for (int i = 0; i < loadingIds.length; i++) ...[
             if (i > 0) const Divider(height: 16),
-            _LoadingModelRow(
-              modelId: loadingIds.elementAt(i),
-              theme: theme,
-            ),
+            _LoadingModelRow(modelId: loadingIds.elementAt(i), theme: theme),
           ],
         ],
       ),

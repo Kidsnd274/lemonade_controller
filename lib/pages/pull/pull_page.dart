@@ -2,10 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lemonade_controller/models/download_job.dart';
 import 'package:lemonade_controller/models/lemonade_model.dart';
-import 'package:lemonade_controller/models/pull_progress_event.dart';
 import 'package:lemonade_controller/models/pull_request_options.dart';
 import 'package:lemonade_controller/models/pull_variants.dart';
+import 'package:lemonade_controller/pages/widgets/action_feedback.dart';
 import 'package:lemonade_controller/providers/api_providers.dart';
 import 'package:lemonade_controller/providers/service_providers.dart';
 import 'package:lemonade_controller/utils/format.dart';
@@ -37,6 +38,10 @@ class _PullPageState extends ConsumerState<PullPage> {
   bool _loadingVariants = false;
   Timer? _variantsDebounce;
   int _variantsRequestId = 0;
+  String? _variantsError;
+  final _otherVariantController = TextEditingController();
+  bool _submitting = false;
+  String? _currentDownloadId;
 
   bool _userEditedRecipe = false;
   final Set<String> _userTouchedLabels = {};
@@ -55,6 +60,7 @@ class _PullPageState extends ConsumerState<PullPage> {
     _checkpointController.dispose();
     _recipeController.dispose();
     _mmprojController.dispose();
+    _otherVariantController.dispose();
     super.dispose();
   }
 
@@ -100,7 +106,9 @@ class _PullPageState extends ConsumerState<PullPage> {
     _variantsDebounce?.cancel();
 
     if (text.contains(':')) {
-      if (_variants != null || _selectedVariantName != null || _loadingVariants) {
+      if (_variants != null ||
+          _selectedVariantName != null ||
+          _loadingVariants) {
         setState(() {
           _variants = null;
           _selectedVariantName = null;
@@ -135,7 +143,13 @@ class _PullPageState extends ConsumerState<PullPage> {
     setState(() => _loadingVariants = true);
 
     final apiClient = ref.read(apiClientProvider);
-    final result = await apiClient.getPullVariants(orgRepo);
+    PullVariants? result;
+    String? error;
+    try {
+      result = await apiClient.getPullVariants(orgRepo);
+    } catch (exception) {
+      error = exception.toString();
+    }
 
     if (!mounted || requestId != _variantsRequestId) return;
 
@@ -149,6 +163,7 @@ class _PullPageState extends ConsumerState<PullPage> {
       _loadingVariants = false;
       _variants = result;
       _selectedVariantName = null;
+      _variantsError = error;
     });
 
     if (result != null && result.variants.isNotEmpty) {
@@ -208,10 +223,13 @@ class _PullPageState extends ConsumerState<PullPage> {
     _checkpointController.addListener(_onCheckpointChanged);
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final modelName = _modelNameController.text.trim();
+    final enteredName = _modelNameController.text.trim();
+    final modelName = enteredName.startsWith('user.')
+        ? enteredName
+        : 'user.$enteredName';
 
     final options = PullRequestOptions(
       modelName: modelName,
@@ -224,18 +242,30 @@ class _PullPageState extends ConsumerState<PullPage> {
       mmproj: _vision ? _mmprojController.text.trim() : null,
     );
 
-    ref.read(pullProgressProvider.notifier).startPull(options);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Started pulling "$modelName"')),
-    );
+    setState(() => _submitting = true);
+    try {
+      final job = await ref.read(downloadsProvider.notifier).startPull(options);
+      if (!mounted) return;
+      setState(() => _currentDownloadId = job.id);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Started downloading "$modelName"')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final pullProgress = ref.watch(pullProgressProvider);
     final systemInfoAsync = ref.watch(systemInfoProvider);
+    final downloadsState = ref.watch(downloadsProvider);
+    final currentDownload = _resolveCurrentDownload(downloadsState);
 
     final availableRecipes = systemInfoAsync.whenOrNull(
       data: (info) => info.recipes.keys.toList(),
@@ -250,15 +280,31 @@ class _PullPageState extends ConsumerState<PullPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildForm(theme, availableRecipes),
-              if (pullProgress.isNotEmpty) ...[
+              if (currentDownload != null) ...[
                 const SizedBox(height: 24),
-                _ActiveDownloads(progress: pullProgress),
+                _ActiveDownload(
+                  job: currentDownload,
+                  pollingError: downloadsState.error,
+                ),
               ],
             ],
           ),
         ),
       ),
     );
+  }
+
+  DownloadJob? _resolveCurrentDownload(DownloadsState state) {
+    final currentId = _currentDownloadId;
+    if (currentId != null) {
+      for (final job in state.jobs) {
+        if (job.id == currentId) return job;
+      }
+    }
+    for (final job in state.jobs) {
+      if (job.running) return job;
+    }
+    return null;
   }
 
   Widget _buildForm(ThemeData theme, List<String>? availableRecipes) {
@@ -306,6 +352,9 @@ class _PullPageState extends ConsumerState<PullPage> {
                 decoration: InputDecoration(
                   labelText: 'Model Name',
                   hintText: 'e.g. Phi-4-Mini-GGUF',
+                  helperText: _modelNameController.text.trim().isEmpty
+                      ? 'Custom models are registered under the user. namespace.'
+                      : 'Will register as ${_modelNameController.text.trim().startsWith('user.') ? _modelNameController.text.trim() : 'user.${_modelNameController.text.trim()}'}',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -316,6 +365,7 @@ class _PullPageState extends ConsumerState<PullPage> {
                   }
                   return null;
                 },
+                onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -353,9 +403,16 @@ class _PullPageState extends ConsumerState<PullPage> {
                 const SizedBox(height: 12),
                 _buildVariantsSection(theme),
               ],
+              if (_variantsError != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _variantsError!,
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
+              ],
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: recipes.contains(_selectedRecipe)
+                initialValue: recipes.contains(_selectedRecipe)
                     ? _selectedRecipe
                     : null,
                 decoration: InputDecoration(
@@ -444,8 +501,14 @@ class _PullPageState extends ConsumerState<PullPage> {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: _submit,
-                  icon: const Icon(Icons.download),
+                  onPressed: _submitting ? null : _submit,
+                  icon: _submitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.download),
                   label: const Text('Pull Model'),
                 ),
               ),
@@ -498,11 +561,7 @@ class _PullPageState extends ConsumerState<PullPage> {
       children: [
         Row(
           children: [
-            Icon(
-              Icons.tune,
-              size: 14,
-              color: theme.colorScheme.primary,
-            ),
+            Icon(Icons.tune, size: 14, color: theme.colorScheme.primary),
             const SizedBox(width: 6),
             Text(
               'Variants',
@@ -532,6 +591,26 @@ class _PullPageState extends ConsumerState<PullPage> {
             ],
           ),
         ],
+        const SizedBox(height: 14),
+        TextField(
+          controller: _otherVariantController,
+          decoration: InputDecoration(
+            labelText: 'Other quantization',
+            hintText: 'e.g. IQ3_M',
+            border: const OutlineInputBorder(),
+            suffixIcon: IconButton(
+              tooltip: 'Use quantization',
+              onPressed: () {
+                final value = _otherVariantController.text.trim();
+                if (value.isNotEmpty) _selectVariant(value);
+              },
+              icon: const Icon(Icons.check),
+            ),
+          ),
+          onSubmitted: (value) {
+            if (value.trim().isNotEmpty) _selectVariant(value.trim());
+          },
+        ),
       ],
     );
   }
@@ -550,8 +629,9 @@ class _PullPageState extends ConsumerState<PullPage> {
 
   Widget _buildVariantTile(PullVariant variant, ThemeData theme) {
     final selected = _selectedVariantName == variant.name;
-    final accent =
-        selected ? theme.colorScheme.primary : theme.colorScheme.outlineVariant;
+    final accent = selected
+        ? theme.colorScheme.primary
+        : theme.colorScheme.outlineVariant;
     final bg = selected
         ? theme.colorScheme.primaryContainer.withValues(alpha: 0.55)
         : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4);
@@ -623,10 +703,11 @@ class _PullPageState extends ConsumerState<PullPage> {
   }
 }
 
-class _ActiveDownloads extends StatelessWidget {
-  final Map<String, PullProgressEvent> progress;
+class _ActiveDownload extends StatelessWidget {
+  final DownloadJob job;
+  final String? pollingError;
 
-  const _ActiveDownloads({required this.progress});
+  const _ActiveDownload({required this.job, this.pollingError});
 
   @override
   Widget build(BuildContext context) {
@@ -645,10 +726,14 @@ class _ActiveDownloads extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(Icons.downloading, size: 20, color: theme.colorScheme.primary),
+                Icon(
+                  Icons.downloading,
+                  size: 20,
+                  color: theme.colorScheme.primary,
+                ),
                 const SizedBox(width: 8),
                 Text(
-                  'Active Downloads',
+                  'Current Download',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -656,9 +741,15 @@ class _ActiveDownloads extends StatelessWidget {
               ],
             ),
             const Divider(height: 24),
-            for (final entry in progress.entries) ...[
-              _DownloadRow(modelName: entry.key, event: entry.value),
+            _DownloadRow(job: job),
+            if (pollingError != null) ...[
               const SizedBox(height: 8),
+              Text(
+                pollingError!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
             ],
           ],
         ),
@@ -668,16 +759,21 @@ class _ActiveDownloads extends StatelessWidget {
 }
 
 class _DownloadRow extends ConsumerWidget {
-  final String modelName;
-  final PullProgressEvent event;
+  final DownloadJob job;
 
-  const _DownloadRow({required this.modelName, required this.event});
+  const _DownloadRow({required this.job});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final percent = event.percent ?? 0;
-    final inProgress = !event.isComplete && !event.isError;
+    final percent = job.percent.clamp(0, 100).toDouble();
+    final inProgress = job.running;
+    final overallTotal = job.totalDownloadSize > 0
+        ? job.totalDownloadSize
+        : job.bytesTotal;
+    final overallDone = job.cumulativeBytesDownloaded > 0
+        ? job.cumulativeBytesDownloaded
+        : job.bytesDownloaded;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -686,20 +782,20 @@ class _DownloadRow extends ConsumerWidget {
           children: [
             Expanded(
               child: Text(
-                LemonadeModel.stripIdPrefix(modelName),
+                LemonadeModel.stripIdPrefix(job.modelName),
                 style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w600,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            if (event.isComplete)
+            if (job.complete || job.status == DownloadStatus.completed)
               Icon(Icons.check_circle, size: 18, color: Colors.green)
-            else if (event.isError)
+            else if (job.status == DownloadStatus.error)
               Icon(Icons.error, size: 18, color: theme.colorScheme.error)
             else
               Text(
-                '$percent%',
+                '${percent.toStringAsFixed(0)}%',
                 style: theme.textTheme.labelMedium?.copyWith(
                   fontWeight: FontWeight.w600,
                   color: theme.colorScheme.primary,
@@ -712,77 +808,75 @@ class _DownloadRow extends ConsumerWidget {
                 tooltip: 'Cancel download',
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(
-                  minWidth: 28,
-                  minHeight: 28,
-                ),
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                 color: theme.colorScheme.onSurfaceVariant,
-                onPressed: () {
-                  ref
-                      .read(pullProgressProvider.notifier)
-                      .cancelPull(modelName);
-                },
+                onPressed: () => runWithErrorFeedback(
+                  context,
+                  () => ref
+                      .read(downloadsProvider.notifier)
+                      .control(job, 'cancel'),
+                ),
               ),
             ],
           ],
         ),
         const SizedBox(height: 4),
-        if (event.isError)
+        if (job.status == DownloadStatus.error)
           Text(
-            event.errorMessage ?? 'Download failed',
+            job.error ?? 'Download failed',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.error,
             ),
           )
-        else if (event.isComplete)
+        else if (job.complete || job.status == DownloadStatus.completed)
           Text(
             'Download complete',
             style: theme.textTheme.bodySmall?.copyWith(color: Colors.green),
           )
         else ...[
-          LinearProgressIndicator(
-            value: percent / 100.0,
-            borderRadius: BorderRadius.circular(4),
+          TweenAnimationBuilder<double>(
+            tween: Tween(end: percent / 100),
+            duration: const Duration(milliseconds: 450),
+            builder: (context, value, _) => LinearProgressIndicator(
+              value: value,
+              borderRadius: BorderRadius.circular(4),
+            ),
           ),
           const SizedBox(height: 4),
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
             children: [
-              if (event.file != null)
-                Expanded(
-                  child: Text(
-                    event.file!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              if (event.fileIndex != null && event.totalFiles != null)
+              if (job.file?.isNotEmpty == true)
                 Text(
-                  'File ${event.fileIndex}/${event.totalFiles}',
+                  job.file!,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-              if (event.bytesDownloaded != null && event.bytesTotal != null) ...[
-                const SizedBox(width: 8),
+              if (job.totalFiles > 0)
                 Text(
-                  '${formatFileSize(event.bytesDownloaded!.toDouble())} / ${formatFileSize(event.bytesTotal!.toDouble())}',
+                  'File ${job.fileIndex}/${job.totalFiles}',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-              ],
-              if (event.speedBytesPerSec != null) ...[
-                const SizedBox(width: 8),
+              if (overallTotal > 0)
                 Text(
-                  formatSpeed(event.speedBytesPerSec!),
+                  '${formatFileSize(overallDone.toDouble())} / '
+                  '${formatFileSize(overallTotal.toDouble())}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              if (job.speedBytesPerSecond != null)
+                Text(
+                  formatSpeed(job.speedBytesPerSecond!),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.primary,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-              ],
             ],
           ),
         ],

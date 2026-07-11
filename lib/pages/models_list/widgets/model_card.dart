@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/models/lemonade_model.dart';
 import 'package:lemonade_controller/pages/model_page/model_page.dart';
+import 'package:lemonade_controller/pages/widgets/action_feedback.dart';
 import 'package:lemonade_controller/providers/api_providers.dart';
+import 'package:lemonade_controller/providers/service_providers.dart';
 import 'package:lemonade_controller/utils/quantization_color.dart';
 
 class ModelCard extends ConsumerWidget {
@@ -68,6 +70,10 @@ class ModelCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isLoading = ref.watch(isModelLoadingProvider(model.id));
     final isLoaded = ref.watch(isModelLoadedProvider(model.id));
+    final health = ref.watch(healthInfoProvider).value;
+    final loaded = ref
+        .watch(loadedModelsProvider)
+        .where((item) => item.modelName == model.id);
     final theme = Theme.of(context);
 
     return Card(
@@ -115,6 +121,47 @@ class ModelCard extends ConsumerWidget {
                 ),
               ),
             ],
+            if (loaded.isNotEmpty && loaded.first.pinned) ...[
+              const SizedBox(width: 4),
+              const Tooltip(
+                message: 'Pinned in memory',
+                child: Icon(Icons.push_pin, size: 16),
+              ),
+            ],
+            if (model.updateAvailable &&
+                (health?.updateCheckDone ?? false)) ...[
+              const SizedBox(width: 4),
+              Tooltip(
+                message: 'Update available',
+                child: IconButton(
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(
+                    minWidth: 28,
+                    minHeight: 28,
+                  ),
+                  padding: EdgeInsets.zero,
+                  onPressed: () async {
+                    try {
+                      await ref.read(apiClientProvider).resumePull(model.id);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Model update started.'),
+                          ),
+                        );
+                      }
+                    } catch (error) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(error.toString())),
+                        );
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.system_update_alt, size: 16),
+                ),
+              ),
+            ],
           ],
         ),
         subtitle: Text.rich(
@@ -151,9 +198,12 @@ class ModelCard extends ConsumerWidget {
                   FocusScope.of(context).unfocus();
                   final confirmed = await _showUnloadConfirmation(context);
                   if (confirmed == true && context.mounted) {
-                    ref
-                        .read(loadingModelsProvider.notifier)
-                        .unloadModel(model.id);
+                    await runWithErrorFeedback(
+                      context,
+                      () => ref
+                          .read(loadingModelsProvider.notifier)
+                          .unloadModel(model.id),
+                    );
                   }
                 },
                 icon: const Icon(Icons.stop_circle_outlined),
@@ -165,9 +215,12 @@ class ModelCard extends ConsumerWidget {
                   FocusScope.of(context).unfocus();
                   final confirmed = await _showLoadConfirmation(context);
                   if (confirmed == true && context.mounted) {
-                    ref
-                        .read(loadingModelsProvider.notifier)
-                        .loadModel(model.id);
+                    await runWithErrorFeedback(
+                      context,
+                      () => ref
+                          .read(loadingModelsProvider.notifier)
+                          .loadModel(model.id),
+                    );
                   }
                 },
                 icon: const Icon(Icons.play_arrow),

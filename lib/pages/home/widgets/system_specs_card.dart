@@ -36,6 +36,38 @@ class SystemSpecsCard extends ConsumerWidget {
                 label: 'OS',
                 value: info.osVersion,
               ),
+              if (info.oemSystem.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                _SpecRow(
+                  icon: Icons.laptop,
+                  label: 'System',
+                  value: info.oemSystem,
+                ),
+              ],
+              if (info.biosVersion.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                _SpecRow(
+                  icon: Icons.settings_input_component,
+                  label: 'BIOS',
+                  value: info.biosVersion,
+                ),
+              ],
+              if (info.cpuMaxClock.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                _SpecRow(
+                  icon: Icons.speed,
+                  label: 'CPU Max Clock',
+                  value: info.cpuMaxClock,
+                ),
+              ],
+              if (info.windowsPowerSetting.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                _SpecRow(
+                  icon: Icons.battery_charging_full,
+                  label: 'Power Plan',
+                  value: info.windowsPowerSetting,
+                ),
+              ],
               const SizedBox(height: 14),
               Text(
                 'Devices',
@@ -120,11 +152,11 @@ class _DeviceTile extends StatelessWidget {
   });
 
   IconData get _icon => switch (iconType) {
-        'cpu' => Icons.memory,
-        'gpu' => Icons.auto_awesome,
-        'npu' => Icons.psychology,
-        _ => Icons.developer_board,
-      };
+    'cpu' => Icons.memory,
+    'gpu' => Icons.auto_awesome,
+    'npu' => Icons.psychology,
+    _ => Icons.developer_board,
+  };
 
   @override
   Widget build(BuildContext context) {

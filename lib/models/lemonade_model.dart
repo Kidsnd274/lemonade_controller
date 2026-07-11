@@ -8,6 +8,8 @@ class LemonadeModel {
   final bool suggested;
   final String ownedBy;
   final double? size;
+  final int? maxContextWindow;
+  final bool updateAvailable;
 
   // Constructor
   LemonadeModel({
@@ -20,6 +22,8 @@ class LemonadeModel {
     required this.suggested,
     required this.ownedBy,
     this.size,
+    this.maxContextWindow,
+    this.updateAvailable = false,
   });
 
   // Factory constructor for JSON deserialization
@@ -37,8 +41,11 @@ class LemonadeModel {
       recipeOptions:
           (json['recipe_options'] as Map?)?.cast<String, dynamic>() ?? {},
       suggested: json['suggested'] as bool? ?? false,
-      ownedBy: json['ownedBy']?.toString() ?? '',
+      ownedBy:
+          json['owned_by']?.toString() ?? json['ownedBy']?.toString() ?? '',
       size: (json['size'] as num?)?.toDouble(),
+      maxContextWindow: (json['max_context_window'] as num?)?.toInt(),
+      updateAvailable: json['update_available'] as bool? ?? false,
     );
   }
 
@@ -52,6 +59,8 @@ class LemonadeModel {
     bool? suggested,
     String? ownedBy,
     double? size,
+    int? maxContextWindow,
+    bool? updateAvailable,
   }) {
     return LemonadeModel(
       id: id ?? this.id,
@@ -63,6 +72,8 @@ class LemonadeModel {
       suggested: suggested ?? this.suggested,
       ownedBy: ownedBy ?? this.ownedBy,
       size: size ?? this.size,
+      maxContextWindow: maxContextWindow ?? this.maxContextWindow,
+      updateAvailable: updateAvailable ?? this.updateAvailable,
     );
   }
 
@@ -70,7 +81,8 @@ class LemonadeModel {
   static final _idPrefixPattern = RegExp(r'^(user|builtin)\.');
 
   /// Strips legacy `user.` and current `builtin.` prefixes from a model id.
-  static String stripIdPrefix(String id) => id.replaceFirst(_idPrefixPattern, '');
+  static String stripIdPrefix(String id) =>
+      id.replaceFirst(_idPrefixPattern, '');
 
   // Derived properties
   String get displayName => stripIdPrefix(id);

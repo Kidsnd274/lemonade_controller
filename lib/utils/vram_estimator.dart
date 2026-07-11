@@ -9,9 +9,7 @@ Map<String, double>? _paramOverrides;
 /// Replaces the active parameter overrides used by VRAM estimation.
 /// Keys are lowercased internally for case-insensitive matching.
 void setParamOverrides(Map<String, double> overrides) {
-  _paramOverrides = overrides.map(
-    (k, v) => MapEntry(k.toLowerCase(), v),
-  );
+  _paramOverrides = overrides.map((k, v) => MapEntry(k.toLowerCase(), v));
 }
 
 /// Looks up parameter count from the overrides file.
@@ -190,8 +188,7 @@ VramEstimate? estimateVramForModel(LemonadeModel model, {int? ctxSize}) {
       extractParamsBillions(model.checkpoint.split(':').first);
   if (paramsBillions == null) return null;
 
-  final ctx =
-      ctxSize ?? (model.recipeOptions['ctx_size'] as num?)?.toInt();
+  final ctx = ctxSize ?? (model.recipeOptions['ctx_size'] as num?)?.toInt();
 
   return estimateVram(
     paramsBillions: paramsBillions,

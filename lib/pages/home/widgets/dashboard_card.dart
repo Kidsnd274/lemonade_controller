@@ -6,6 +6,7 @@ class DashboardCard extends StatelessWidget {
   final Widget child;
   final Widget? trailing;
   final EdgeInsetsGeometry? contentPadding;
+  final bool expandContent;
 
   const DashboardCard({
     super.key,
@@ -14,6 +15,7 @@ class DashboardCard extends StatelessWidget {
     required this.child,
     this.trailing,
     this.contentPadding,
+    this.expandContent = false,
   });
 
   @override
@@ -42,17 +44,22 @@ class DashboardCard extends StatelessWidget {
                     color: theme.colorScheme.onSurface,
                   ),
                 ),
-                if (trailing != null) ...[
-                  const Spacer(),
-                  trailing!,
-                ],
+                if (trailing != null) ...[const Spacer(), trailing!],
               ],
             ),
           ),
-          Padding(
-            padding: contentPadding ?? const EdgeInsets.all(16),
-            child: child,
-          ),
+          if (expandContent)
+            Expanded(
+              child: Padding(
+                padding: contentPadding ?? const EdgeInsets.all(16),
+                child: child,
+              ),
+            )
+          else
+            Padding(
+              padding: contentPadding ?? const EdgeInsets.all(16),
+              child: child,
+            ),
         ],
       ),
     );

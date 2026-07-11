@@ -2,11 +2,13 @@ class LoadedModel {
   final String backendUrl;
   final String checkpoint;
   final String device;
-  final int lastUse;
+  final double lastUse;
   final String modelName;
   final String recipe;
   final Map<String, dynamic> recipeOptions;
   final String type;
+  final bool pinned;
+  final int? pid;
 
   LoadedModel({
     required this.backendUrl,
@@ -17,6 +19,8 @@ class LoadedModel {
     required this.recipe,
     required this.recipeOptions,
     required this.type,
+    this.pinned = false,
+    this.pid,
   });
 
   factory LoadedModel.fromJson(Map<String, dynamic> json) {
@@ -24,14 +28,17 @@ class LoadedModel {
       backendUrl: json['backend_url']?.toString() ?? '',
       checkpoint: json['checkpoint']?.toString() ?? '',
       device: json['device']?.toString() ?? '',
-      lastUse: json['last_use'] != null
-          ? int.parse(json['last_use'].toString())
-          : 0,
+      lastUse:
+          (json['last_use'] as num?)?.toDouble() ??
+          double.tryParse(json['last_use']?.toString() ?? '') ??
+          0,
       modelName: json['model_name']?.toString() ?? '',
       recipe: json['recipe']?.toString() ?? '',
       recipeOptions:
           (json['recipe_options'] as Map?)?.cast<String, dynamic>() ?? {},
       type: json['type']?.toString() ?? '',
+      pinned: json['pinned'] as bool? ?? false,
+      pid: (json['pid'] as num?)?.toInt(),
     );
   }
 
@@ -39,11 +46,13 @@ class LoadedModel {
     String? backendUrl,
     String? checkpoint,
     String? device,
-    int? lastUse,
+    double? lastUse,
     String? modelName,
     String? recipe,
     Map<String, dynamic>? recipeOptions,
     String? type,
+    bool? pinned,
+    int? pid,
   }) {
     return LoadedModel(
       backendUrl: backendUrl ?? this.backendUrl,
@@ -54,6 +63,8 @@ class LoadedModel {
       recipe: recipe ?? this.recipe,
       recipeOptions: recipeOptions ?? this.recipeOptions,
       type: type ?? this.type,
+      pinned: pinned ?? this.pinned,
+      pid: pid ?? this.pid,
     );
   }
 
@@ -67,6 +78,8 @@ class LoadedModel {
       'recipe': recipe,
       'recipe_options': recipeOptions,
       'type': type,
+      'pinned': pinned,
+      if (pid != null) 'pid': pid,
     };
   }
 

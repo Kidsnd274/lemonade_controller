@@ -58,12 +58,14 @@ class NpuInfo {
   final String name;
   final String family;
   final double utilization;
+  final String? powerMode;
 
   const NpuInfo({
     required this.available,
     required this.name,
     required this.family,
     this.utilization = 0,
+    this.powerMode,
   });
 
   factory NpuInfo.fromJson(Map<String, dynamic> json) {
@@ -72,6 +74,7 @@ class NpuInfo {
       name: json['name']?.toString() ?? '',
       family: json['family']?.toString() ?? '',
       utilization: (json['utilization'] as num?)?.toDouble() ?? 0,
+      powerMode: json['power_mode']?.toString(),
     );
   }
 }
@@ -103,10 +106,8 @@ class BackendInfo {
       message: json['message']?.toString(),
       version: json['version']?.toString(),
       action: json['action']?.toString(),
-      devices: (json['devices'] as List?)
-              ?.map((e) => e.toString())
-              .toList() ??
-          [],
+      devices:
+          (json['devices'] as List?)?.map((e) => e.toString()).toList() ?? [],
       releaseUrl: json['release_url']?.toString(),
       downloadFilename: json['download_filename']?.toString(),
       canUninstall: json['can_uninstall'] as bool? ?? false,
@@ -122,10 +123,7 @@ class RecipeInfo {
   final String defaultBackend;
   final Map<String, BackendInfo> backends;
 
-  const RecipeInfo({
-    required this.defaultBackend,
-    required this.backends,
-  });
+  const RecipeInfo({required this.defaultBackend, required this.backends});
 
   factory RecipeInfo.fromJson(Map<String, dynamic> json) {
     final backendsJson =
@@ -141,8 +139,7 @@ class RecipeInfo {
     );
   }
 
-  int get installedCount =>
-      backends.values.where((b) => b.isInstalled).length;
+  int get installedCount => backends.values.where((b) => b.isInstalled).length;
 
   int get totalCount => backends.length;
 }
@@ -151,6 +148,10 @@ class SystemInfo {
   final String osVersion;
   final String physicalMemory;
   final String processor;
+  final String oemSystem;
+  final String biosVersion;
+  final String cpuMaxClock;
+  final String windowsPowerSetting;
   final CpuInfo cpu;
 
   // Legacy fields (old API: separate amd_igpu, amd_dgpu, nvidia_dgpu)
@@ -169,6 +170,10 @@ class SystemInfo {
     required this.osVersion,
     required this.physicalMemory,
     required this.processor,
+    this.oemSystem = '',
+    this.biosVersion = '',
+    this.cpuMaxClock = '',
+    this.windowsPowerSetting = '',
     required this.cpu,
     this.amdIgpu,
     this.amdDgpus = const [],
@@ -180,14 +185,12 @@ class SystemInfo {
   });
 
   factory SystemInfo.fromJson(Map<String, dynamic> json) {
-    final devices =
-        (json['devices'] as Map?)?.cast<String, dynamic>() ?? {};
+    final devices = (json['devices'] as Map?)?.cast<String, dynamic>() ?? {};
     final recipesJson =
         (json['recipes'] as Map?)?.cast<String, dynamic>() ?? {};
 
     // Parse CPU
-    final cpuJson =
-        (devices['cpu'] as Map?)?.cast<String, dynamic>() ?? {};
+    final cpuJson = (devices['cpu'] as Map?)?.cast<String, dynamic>() ?? {};
 
     // -----------------------------------------------------------------------
     // Parse AMD GPUs – support both old (separate) and new (consolidated) API
@@ -206,7 +209,8 @@ class SystemInfo {
     GpuInfo? amdIgpu;
     if (devices['amd_igpu'] is Map) {
       final igpu = GpuInfo.fromJson(
-          (devices['amd_igpu'] as Map).cast<String, dynamic>());
+        (devices['amd_igpu'] as Map).cast<String, dynamic>(),
+      );
       if (igpu.available) amdIgpu = igpu;
     }
 
@@ -244,7 +248,8 @@ class SystemInfo {
     NpuInfo? amdNpu;
     if (devices['amd_npu'] is Map) {
       final npu = NpuInfo.fromJson(
-          (devices['amd_npu'] as Map).cast<String, dynamic>());
+        (devices['amd_npu'] as Map).cast<String, dynamic>(),
+      );
       if (npu.available) amdNpu = npu;
     }
 
@@ -252,6 +257,10 @@ class SystemInfo {
       osVersion: json['OS Version']?.toString() ?? '',
       physicalMemory: json['Physical Memory']?.toString() ?? '',
       processor: json['Processor']?.toString() ?? '',
+      oemSystem: json['OEM System']?.toString() ?? '',
+      biosVersion: json['BIOS Version']?.toString() ?? '',
+      cpuMaxClock: json['CPU Max Clock']?.toString() ?? '',
+      windowsPowerSetting: json['Windows Power Setting']?.toString() ?? '',
       cpu: CpuInfo.fromJson(cpuJson),
       // Legacy fields populated from old API keys
       amdIgpu: amdIgpu,
@@ -273,14 +282,48 @@ class SystemInfo {
   /// Returns all AMD GPUs, preferring the new consolidated [amdGpus] list
   /// but falling back to legacy [amdIgpu] + [amdDgpus] for backwards
   /// compatibility.
-  List<GpuInfo> get allAmdGpus =>
-      amdGpus.isNotEmpty ? amdGpus : _legacyAmdGpus;
+  List<GpuInfo> get allAmdGpus => amdGpus.isNotEmpty ? amdGpus : _legacyAmdGpus;
 
   /// Returns all NVIDIA GPUs, preferring the new [nvidiaGpus] list
   /// but falling back to legacy [nvidiaDgpus] for backwards
   /// compatibility.
   List<GpuInfo> get allNvidiaGpus =>
       nvidiaGpus.isNotEmpty ? nvidiaGpus : nvidiaDgpus;
+
+  bool get hasGpu => allAmdGpus.isNotEmpty || allNvidiaGpus.isNotEmpty;
+
+  bool get hasNpu => amdNpu != null;
+
+  /// Total dedicated memory reported across detected GPUs.
+  ///
+  /// Unified/shared-memory partitions are not currently exposed by the
+  /// server, so zero means that no useful dedicated capacity was reported.
+  double get reportedVramGb => [
+    ...allAmdGpus,
+    ...allNvidiaGpus,
+  ].fold(0, (total, gpu) => total + gpu.vramGb);
+
+  /// Parsed physical-memory capacity in GiB.
+  ///
+  /// Lemonade currently returns this as a human-readable string. Accept the
+  /// common binary and decimal labels while keeping GB/GiB numerically aligned
+  /// with the server's `memory_gb` telemetry.
+  double? get physicalMemoryGb {
+    final normalized = physicalMemory.trim().replaceAll(',', '');
+    final match = RegExp(
+      r'([0-9]+(?:\.[0-9]+)?)\s*([kmgt]i?b)?',
+      caseSensitive: false,
+    ).firstMatch(normalized);
+    if (match == null) return null;
+    final value = double.tryParse(match.group(1)!);
+    if (value == null || value <= 0) return null;
+    return switch (match.group(2)?.toLowerCase()) {
+      'kb' || 'kib' => value / (1024 * 1024),
+      'mb' || 'mib' => value / 1024,
+      'tb' || 'tib' => value * 1024,
+      _ => value,
+    };
+  }
 
   List<GpuInfo> get _legacyAmdGpus {
     final gpus = <GpuInfo>[];
@@ -316,18 +359,17 @@ class SystemInfo {
 
     // NVIDIA GPUs
     for (final gpu in allNvidiaGpus) {
-      result.add((
-        label: 'NVIDIA GPU',
-        icon: 'gpu',
-        detail: _gpuDetail(gpu),
-      ));
+      result.add((label: 'NVIDIA GPU', icon: 'gpu', detail: _gpuDetail(gpu)));
     }
 
     if (amdNpu != null) {
+      final powerMode = amdNpu!.powerMode;
       result.add((
         label: 'NPU',
         icon: 'npu',
-        detail: '${amdNpu!.name} (${amdNpu!.family})',
+        detail:
+            '${amdNpu!.name} (${amdNpu!.family})'
+            '${powerMode?.isNotEmpty == true ? ' · $powerMode' : ''}',
       ));
     }
 

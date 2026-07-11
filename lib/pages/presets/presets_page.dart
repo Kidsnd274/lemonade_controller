@@ -98,9 +98,9 @@ class _PresetsContent extends ConsumerWidget {
   }
 
   void _openEditor(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const PresetEditorPage()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const PresetEditorPage()));
   }
 }
 
@@ -188,9 +188,7 @@ class _PresetCard extends ConsumerWidget {
                 ),
                 const SizedBox(width: 8),
                 FilledButton.icon(
-                  onPressed: isLoading
-                      ? null
-                      : () => _loadPreset(context, ref),
+                  onPressed: isLoading ? null : () => _loadPreset(context, ref),
                   icon: const Icon(Icons.play_arrow, size: 18),
                   label: const Text('Load'),
                 ),
@@ -212,15 +210,19 @@ class _PresetCard extends ConsumerWidget {
     final total = preset.entries.length;
     final messenger = ScaffoldMessenger.of(context);
     if (successes == total) {
-      messenger.showSnackBar(SnackBar(
-        content: Text('Loaded all $total models from "${preset.name}".'),
-      ));
-    } else {
-      messenger.showSnackBar(SnackBar(
-        content: Text(
-          'Loaded $successes of $total models from "${preset.name}".',
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Loaded all $total models from "${preset.name}".'),
         ),
-      ));
+      );
+    } else {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Loaded $successes of $total models from "${preset.name}".',
+          ),
+        ),
+      );
     }
   }
 
@@ -276,7 +278,9 @@ class _PresetVramSummary extends ConsumerWidget {
       VramEstimate? vram;
 
       if (allModels != null) {
-        final model = allModels.where((m) => m.id == entry.modelName).firstOrNull;
+        final model = allModels
+            .where((m) => m.id == entry.modelName)
+            .firstOrNull;
         if (model != null) {
           vram = estimateVramForModel(model, ctxSize: entry.ctxSize);
         }
@@ -301,11 +305,7 @@ class _PresetVramSummary extends ConsumerWidget {
       padding: const EdgeInsets.only(top: 10),
       child: Row(
         children: [
-          Icon(
-            Icons.memory,
-            size: 16,
-            color: theme.colorScheme.primary,
-          ),
+          Icon(Icons.memory, size: 16, color: theme.colorScheme.primary),
           const SizedBox(width: 6),
           Text(
             '~${totalGb.toStringAsFixed(1)} GB VRAM',

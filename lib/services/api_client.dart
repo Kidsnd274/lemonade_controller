@@ -1,210 +1,229 @@
-import 'dart:async';
-import 'dart:convert';
-
 import 'package:dio/dio.dart';
+import 'package:lemonade_controller/models/api_error.dart';
+import 'package:lemonade_controller/models/download_job.dart';
 import 'package:lemonade_controller/models/lemonade_load_options.dart';
 import 'package:lemonade_controller/models/lemonade_unload_options.dart';
 import 'package:lemonade_controller/models/loaded_model.dart';
-import 'package:lemonade_controller/models/pull_progress_event.dart';
+import 'package:lemonade_controller/models/model_files.dart';
 import 'package:lemonade_controller/models/pull_request_options.dart';
 import 'package:lemonade_controller/models/pull_variants.dart';
+import 'package:lemonade_controller/models/request_stats.dart';
+import 'package:lemonade_controller/models/server_profile.dart';
+import 'package:lemonade_controller/models/system_stats.dart';
 import 'package:lemonade_controller/utils/logger.dart';
 
-final logger = createLogger("api_client");
+final logger = createLogger('api_client');
 
 class LemonadeApiClient {
-  final Dio _dio = Dio();
+  final Dio _dio;
   final String baseUrl;
 
-  LemonadeApiClient({required this.baseUrl});
-
-  Future<Map<String, dynamic>> getSystemInfo() async {
-    logger.i('Fetching system info from $baseUrl/system-info');
-    try {
-      final response = await _dio.get('$baseUrl/system-info');
-      logger.i('System info fetched successfully: ${response.data}');
-      return response.data;
-    } catch (e, stackTrace) {
-      logger.e(
-        'Failed to load system info: $e',
-        error: e,
-        stackTrace: stackTrace,
-      );
-      throw Exception('Failed to load system info: $e');
-    }
+  LemonadeApiClient({
+    required this.baseUrl,
+    Dio? dio,
+    Map<String, String> headers = const {},
+  }) : _dio = dio ?? Dio() {
+    _dio.options.headers.addAll(headers);
   }
 
-  Future<Map<String, dynamic>> getHealth() async {
-    logger.i('Fetching health status from $baseUrl/health');
-    try {
-      final response = await _dio.get('$baseUrl/health');
-      logger.i('Health status fetched successfully: ${response.data}');
-      return response.data;
-    } catch (e, stackTrace) {
-      logger.e(
-        'Failed to load health status: $e',
-        error: e,
-        stackTrace: stackTrace,
+  factory LemonadeApiClient.forProfile(ServerProfile profile, {Dio? dio}) {
+    final headers = <String, String>{};
+    for (final entry in profile.customHeaders.entries) {
+      final existing = headers.keys.where(
+        (key) => key.toLowerCase() == entry.key.toLowerCase(),
       );
-      throw Exception('Failed to load health status: $e');
+      if (existing.isNotEmpty) headers.remove(existing.first);
+      headers[entry.key] = entry.value;
     }
+    if (profile.bearerToken?.trim().isNotEmpty == true) {
+      headers.removeWhere((key, _) => key.toLowerCase() == 'authorization');
+      headers['Authorization'] = 'Bearer ${profile.bearerToken!.trim()}';
+    }
+    return LemonadeApiClient(
+      baseUrl: profile.baseUrl.replaceAll(RegExp(r'/$'), ''),
+      dio: dio,
+      headers: headers,
+    );
   }
+
+  Future<Map<String, dynamic>> getSystemInfo() => _getMap('/system-info');
+  Future<Map<String, dynamic>> getHealth() => _getMap('/health');
 
   Future<List<dynamic>> getModelsList() async {
-    logger.i('Fetching models list from $baseUrl/models');
-    try {
-      final response = await _dio.get('$baseUrl/models');
-      logger.i(
-        'Models list fetched successfully, data count: ${response.data['data']?.length ?? 0}',
-      );
-      return List<Map<String, dynamic>>.from(response.data['data']);
-    } catch (e, stackTrace) {
-      logger.e(
-        'Failed to load models list: $e',
-        error: e,
-        stackTrace: stackTrace,
-      );
-      throw Exception('Failed to load models list: $e');
-    }
+    final response = await _request(
+      () => _dio.get('$baseUrl/models'),
+      'load models',
+    );
+    final data = (response.data as Map?)?['data'] as List? ?? const [];
+    return data.cast<dynamic>();
+  }
+
+  Future<SystemStats> getSystemStats() async =>
+      SystemStats.fromJson(await _getMap('/system-stats'));
+
+  Future<RequestStats> getRequestStats() async =>
+      RequestStats.fromJson(await _getMap('/stats'));
+
+  Future<ModelFiles> getModelFiles(String modelId) async {
+    final encoded = Uri.encodeComponent(modelId);
+    return ModelFiles.fromJson(await _getMap('/models/$encoded/files'));
+  }
+
+  Future<List<DownloadJob>> getDownloads() async {
+    final response = await _request(
+      () => _dio.get('$baseUrl/downloads'),
+      'load downloads',
+    );
+    return (response.data as List? ?? const [])
+        .map(
+          (item) => DownloadJob.fromJson((item as Map).cast<String, dynamic>()),
+        )
+        .toList();
+  }
+
+  Future<DownloadJob?> controlDownload(String id, String action) async {
+    final response = await _request(
+      () => _dio.post(
+        '$baseUrl/downloads/control',
+        data: {'id': id, 'action': action},
+      ),
+      '$action download',
+    );
+    if (action == 'remove') return null;
+    return DownloadJob.fromJson((response.data as Map).cast<String, dynamic>());
+  }
+
+  Future<DownloadJob> startPull(PullRequestOptions options) async {
+    final response = await _request(
+      () => _dio.post('$baseUrl/pull', data: options.toJson()),
+      'start model download',
+    );
+    return DownloadJob.fromJson((response.data as Map).cast<String, dynamic>());
+  }
+
+  Future<DownloadJob> resumePull(String modelName) async {
+    final response = await _request(
+      () => _dio.post(
+        '$baseUrl/pull',
+        data: {'model_name': modelName, 'stream': true, 'subscribe': false},
+      ),
+      'resume model download',
+    );
+    return DownloadJob.fromJson((response.data as Map).cast<String, dynamic>());
+  }
+
+  Future<PullVariants> getPullVariants(String checkpoint) async {
+    final response = await _request(
+      () => _dio.get(
+        '$baseUrl/pull/variants',
+        queryParameters: {'checkpoint': checkpoint},
+      ),
+      'load pull variants',
+    );
+    return PullVariants.fromJson(
+      (response.data as Map).cast<String, dynamic>(),
+    );
   }
 
   Future<bool> loadModel(LemonadeLoadOptionsModel options) async {
-    logger.i('Sending command to load ${options.modelName}');
-    try {
-      final response = await _dio.post('$baseUrl/load', data: options.toJson());
-      return response.statusCode == 200;
-    } on DioException catch (e) {
-      logger.e('Failed to load model', error: e, stackTrace: e.stackTrace);
-      return false;
-    }
+    await _request(
+      () => _dio.post('$baseUrl/load', data: options.toJson()),
+      'load ${options.modelName}',
+    );
+    return true;
   }
 
   Future<bool> unloadModel(LemonadeUnloadOptionsModel options) async {
-    logger.i('Sending command to unload ${options.modelName}');
-    try {
-      final response = await _dio.post(
-        '$baseUrl/unload',
-        data: options.toJson(),
-      );
-      return response.statusCode == 200;
-    } on DioException catch (e) {
-      logger.e('Failed to unload model', error: e, stackTrace: e.stackTrace);
-      return false;
-    }
+    await _request(
+      () => _dio.post('$baseUrl/unload', data: options.toJson()),
+      'unload ${options.modelName}',
+    );
+    return true;
   }
 
   Future<bool> deleteModel(String modelName) async {
-    logger.i('Sending command to delete $modelName');
-    try {
-      final response = await _dio.post(
-        '$baseUrl/delete',
-        data: {'model_name': modelName},
-      );
-      final status = response.data['status'];
-      if (status == 'error') {
-        throw Exception(response.data['message'] ?? 'Delete failed');
-      }
-      return response.statusCode == 200;
-    } on DioException catch (e) {
-      logger.e('Failed to delete model', error: e, stackTrace: e.stackTrace);
-      final message = e.response?.data?['message'] ?? e.message;
-      throw Exception('Failed to delete model: $message');
-    }
-  }
-
-  Stream<PullProgressEvent> pullModel(
-    PullRequestOptions options, {
-    CancelToken? cancelToken,
-  }) async* {
-    logger.i('Pulling model ${options.modelName}');
-    try {
-      final response = await _dio.post<ResponseBody>(
-        '$baseUrl/pull',
-        data: options.toJson(),
-        options: Options(responseType: ResponseType.stream),
-        cancelToken: cancelToken,
-      );
-
-      String buffer = '';
-      String currentEvent = 'progress';
-
-      final stream = response.data!.stream.cast<List<int>>();
-      await for (final chunk in stream.transform(utf8.decoder)) {
-        buffer += chunk;
-        final lines = buffer.split('\n');
-        buffer = lines.last;
-
-        for (int i = 0; i < lines.length - 1; i++) {
-          final line = lines[i].trim();
-          if (line.isEmpty) continue;
-          if (line.startsWith('event:')) {
-            currentEvent = line.substring(6).trim();
-          } else if (line.startsWith('data:')) {
-            final jsonStr = line.substring(5).trim();
-            if (jsonStr.isEmpty) continue;
-            try {
-              final data = jsonDecode(jsonStr) as Map<String, dynamic>;
-              yield PullProgressEvent.fromSse(currentEvent, data);
-            } catch (e) {
-              logger.w('Failed to parse SSE data: $jsonStr');
-            }
-          }
-        }
-      }
-
-      if (buffer.trim().isNotEmpty) {
-        final line = buffer.trim();
-        if (line.startsWith('data:')) {
-          final jsonStr = line.substring(5).trim();
-          if (jsonStr.isNotEmpty) {
-            try {
-              final data = jsonDecode(jsonStr) as Map<String, dynamic>;
-              yield PullProgressEvent.fromSse(currentEvent, data);
-            } catch (_) {}
-          }
-        }
-      }
-    } catch (e, stackTrace) {
-      if (e is DioException && CancelToken.isCancel(e)) {
-        logger.i('Pull cancelled for ${options.modelName}');
-        return;
-      }
-      logger.e('Failed to pull model', error: e, stackTrace: stackTrace);
-      yield PullProgressEvent(
-        eventType: PullEventType.error,
-        errorMessage: 'Failed to pull model: $e',
+    final response = await _request(
+      () => _dio.post('$baseUrl/delete', data: {'model_name': modelName}),
+      'delete $modelName',
+    );
+    final data = response.data;
+    if (data is Map && data['status'] == 'error') {
+      throw LemonadeApiException(
+        data['message']?.toString() ?? 'Delete failed',
+        statusCode: response.statusCode,
       );
     }
-  }
-
-  Future<PullVariants?> getPullVariants(String checkpoint) async {
-    logger.i('Fetching pull variants for $checkpoint');
-    try {
-      final response = await _dio.get(
-        '$baseUrl/pull/variants',
-        queryParameters: {'checkpoint': checkpoint},
-      );
-      return PullVariants.fromJson(
-        (response.data as Map).cast<String, dynamic>(),
-      );
-    } on DioException catch (e) {
-      logger.w(
-        'Pull variants lookup failed for $checkpoint: ${e.message}',
-      );
-      return null;
-    } catch (e, stackTrace) {
-      logger.w(
-        'Failed to parse pull variants for $checkpoint',
-        error: e,
-        stackTrace: stackTrace,
-      );
-      return null;
-    }
+    return true;
   }
 
   Future<List<LoadedModel>> getLoadedModels() async {
     final health = await getHealth();
-    final models = health['all_models_loaded'] as List;
-    return models.map((json) => LoadedModel.fromJson(json)).toList();
+    final models = health['all_models_loaded'] as List? ?? const [];
+    return models
+        .map(
+          (json) => LoadedModel.fromJson((json as Map).cast<String, dynamic>()),
+        )
+        .toList();
+  }
+
+  Future<Map<String, dynamic>> _getMap(String path) async {
+    final response = await _request(
+      () => _dio.get('$baseUrl$path'),
+      'load ${path.substring(1)}',
+    );
+    return (response.data as Map).cast<String, dynamic>();
+  }
+
+  Future<Response<dynamic>> _request(
+    Future<Response<dynamic>> Function() request,
+    String operation,
+  ) async {
+    logger.i('Lemonade API: $operation');
+    try {
+      return await request();
+    } on DioException catch (error, stackTrace) {
+      final exception = _toApiException(error, operation);
+      logger.e(
+        'Lemonade API failed: $operation (${exception.statusCode ?? 'network'})',
+        error: exception.message,
+        stackTrace: stackTrace,
+      );
+      throw exception;
+    } catch (error, stackTrace) {
+      logger.e(
+        'Lemonade API failed: $operation',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      if (error is LemonadeApiException) rethrow;
+      throw LemonadeApiException('Failed to $operation');
+    }
+  }
+
+  LemonadeApiException _toApiException(DioException error, String operation) {
+    final response = error.response;
+    final data = response?.data;
+    String? code;
+    String? message;
+    if (data is Map) {
+      final nested = data['error'];
+      if (nested is Map) {
+        code = nested['code']?.toString() ?? nested['type']?.toString();
+        message = nested['message']?.toString();
+      } else {
+        code = data['code']?.toString();
+        message = data['message']?.toString() ?? data['error']?.toString();
+      }
+    }
+    final status = response?.statusCode;
+    message ??= switch (status) {
+      401 => 'Authentication required. Check this server profile token.',
+      403 => 'This credential is not allowed to perform that action.',
+      404 || 405 => 'Not supported by this server version.',
+      409 when code == 'slots_pinned_error' =>
+        'All model slots are pinned. Unload a pinned model or load without pinning.',
+      _ => error.message ?? 'Failed to $operation',
+    };
+    return LemonadeApiException(message, statusCode: status, code: code);
   }
 }

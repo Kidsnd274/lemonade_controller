@@ -4,11 +4,17 @@ class ServerProfile {
   final String id;
   final String name;
   final String baseUrl;
+  final String? bearerToken;
+  final Map<String, String> customHeaders;
+  final String? webSocketUrlOverride;
 
   const ServerProfile({
     required this.id,
     required this.name,
     required this.baseUrl,
+    this.bearerToken,
+    this.customHeaders = const {},
+    this.webSocketUrlOverride,
   });
 
   String get host => Uri.tryParse(baseUrl)?.host ?? baseUrl;
@@ -21,21 +27,51 @@ class ServerProfile {
     return '${uri.host}:$port';
   }
 
-  ServerProfile copyWith({String? id, String? name, String? baseUrl}) {
+  ServerProfile copyWith({
+    String? id,
+    String? name,
+    String? baseUrl,
+    String? bearerToken,
+    Map<String, String>? customHeaders,
+    String? webSocketUrlOverride,
+    bool clearBearerToken = false,
+    bool clearWebSocketUrlOverride = false,
+  }) {
     return ServerProfile(
       id: id ?? this.id,
       name: name ?? this.name,
       baseUrl: baseUrl ?? this.baseUrl,
+      bearerToken: clearBearerToken ? null : bearerToken ?? this.bearerToken,
+      customHeaders: customHeaders ?? this.customHeaders,
+      webSocketUrlOverride: clearWebSocketUrlOverride
+          ? null
+          : webSocketUrlOverride ?? this.webSocketUrlOverride,
     );
   }
 
-  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'baseUrl': baseUrl};
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'baseUrl': baseUrl,
+    if (bearerToken != null && bearerToken!.isNotEmpty)
+      'bearerToken': bearerToken,
+    if (customHeaders.isNotEmpty) 'customHeaders': customHeaders,
+    if (webSocketUrlOverride != null && webSocketUrlOverride!.isNotEmpty)
+      'webSocketUrlOverride': webSocketUrlOverride,
+  };
 
   factory ServerProfile.fromJson(Map<String, dynamic> json) {
     return ServerProfile(
       id: json['id'] as String,
       name: json['name'] as String,
       baseUrl: json['baseUrl'] as String,
+      bearerToken: json['bearerToken']?.toString(),
+      customHeaders:
+          (json['customHeaders'] as Map?)?.map(
+            (key, value) => MapEntry(key.toString(), value.toString()),
+          ) ??
+          const {},
+      webSocketUrlOverride: json['webSocketUrlOverride']?.toString(),
     );
   }
 
@@ -68,10 +104,27 @@ class ServerProfile {
       other is ServerProfile &&
           id == other.id &&
           name == other.name &&
-          baseUrl == other.baseUrl;
+          baseUrl == other.baseUrl &&
+          bearerToken == other.bearerToken &&
+          webSocketUrlOverride == other.webSocketUrlOverride &&
+          _mapEquals(customHeaders, other.customHeaders);
+
+  static bool _mapEquals(Map<String, String> a, Map<String, String> b) {
+    if (a.length != b.length) return false;
+    return a.entries.every((entry) => b[entry.key] == entry.value);
+  }
 
   @override
-  int get hashCode => Object.hash(id, name, baseUrl);
+  int get hashCode => Object.hash(
+    id,
+    name,
+    baseUrl,
+    bearerToken,
+    webSocketUrlOverride,
+    Object.hashAll(
+      customHeaders.entries.map((e) => Object.hash(e.key, e.value)),
+    ),
+  );
 
   @override
   String toString() => 'ServerProfile(id: $id, name: $name, baseUrl: $baseUrl)';

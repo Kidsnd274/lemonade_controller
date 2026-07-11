@@ -26,19 +26,21 @@ class ModelLoadPreset {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'entries': entries.map((e) => e.toJson()).toList(),
-      };
+    'id': id,
+    'name': name,
+    'entries': entries.map((e) => e.toJson()).toList(),
+  };
 
   factory ModelLoadPreset.fromJson(Map<String, dynamic> json) {
     return ModelLoadPreset(
       id: json['id'] as String,
       name: json['name'] as String,
-      entries: (json['entries'] as List?)
+      entries:
+          (json['entries'] as List?)
               ?.map(
-                (e) =>
-                    LemonadeLoadOptionsModel.fromJson(e as Map<String, dynamic>),
+                (e) => LemonadeLoadOptionsModel.fromJson(
+                  e as Map<String, dynamic>,
+                ),
               )
               .toList() ??
           [],

@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/pages/home/home_page.dart';
+import 'package:lemonade_controller/pages/downloads/downloads_page.dart';
+import 'package:lemonade_controller/pages/logs/logs_page.dart';
 import 'package:lemonade_controller/pages/models_list/models_page.dart';
 import 'package:lemonade_controller/pages/presets/presets_page.dart';
 import 'package:lemonade_controller/pages/pull/pull_page.dart';
 import 'package:lemonade_controller/pages/widgets/nav_item.dart';
+import 'package:lemonade_controller/providers/api_providers.dart';
 import 'package:lemonade_controller/pages/settings/settings_page.dart';
 import 'package:lemonade_controller/pages/widgets/drawer_content.dart';
 import 'package:lemonade_controller/providers/providers.dart';
+import 'package:lemonade_controller/providers/service_providers.dart';
 
 enum ScreenSize { compact, medium, expanded }
 
@@ -25,7 +29,8 @@ class MainPage extends ConsumerStatefulWidget {
   ConsumerState<MainPage> createState() => _MainPageState();
 }
 
-class _MainPageState extends ConsumerState<MainPage> {
+class _MainPageState extends ConsumerState<MainPage>
+    with WidgetsBindingObserver {
   int _selectedIndex = 0;
 
   static final List<NavItem> _navItems = [
@@ -45,7 +50,20 @@ class _MainPageState extends ConsumerState<MainPage> {
       title: 'Pull',
       icon: Icons.download_outlined,
       selectedIcon: Icons.download,
-      page: const PullPage(),
+      page: ProviderScope(
+        overrides: [
+          downloadsPollingIntervalProvider.overrideWithValue(
+            const Duration(milliseconds: 500),
+          ),
+        ],
+        child: const PullPage(),
+      ),
+    ),
+    NavItem(
+      title: 'Downloads',
+      icon: Icons.downloading_outlined,
+      selectedIcon: Icons.downloading,
+      page: const DownloadsPage(),
     ),
     NavItem(
       title: 'Presets',
@@ -59,13 +77,33 @@ class _MainPageState extends ConsumerState<MainPage> {
       selectedIcon: Icons.settings,
       page: const SettingsPage(),
     ),
+    NavItem(
+      title: 'Logs',
+      icon: Icons.terminal_outlined,
+      selectedIcon: Icons.terminal,
+      page: const LogsPage(),
+    ),
   ];
   late final List<GlobalKey> _pageKeys;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _pageKeys = List.generate(_navItems.length, (_) => GlobalKey());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    ref.read(appForegroundProvider.notifier).state =
+        state == AppLifecycleState.resumed ||
+        state == AppLifecycleState.inactive;
   }
 
   @override
@@ -168,7 +206,9 @@ class _MainPageState extends ConsumerState<MainPage> {
       centerTitle: false,
       title: Text(
         _navItems[_selectedIndex].title,
-        style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
+        style: theme.textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.w600,
+        ),
       ),
       scrolledUnderElevation: 1,
       actions: [
