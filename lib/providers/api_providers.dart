@@ -239,24 +239,43 @@ class DownloadsState {
   );
 }
 
+/// How frequently active server-owned downloads are refreshed in this scope.
+///
+/// Most pages use the conservative two-second default. A page that is focused
+/// on a download can override this provider without changing polling elsewhere.
+final downloadsPollingIntervalProvider = Provider<Duration>(
+  (ref) => const Duration(seconds: 2),
+  dependencies: const [],
+);
+
 final downloadsProvider =
-    StateNotifierProvider.autoDispose<DownloadsNotifier, DownloadsState>((ref) {
-      return DownloadsNotifier(
+    StateNotifierProvider.autoDispose<DownloadsNotifier, DownloadsState>(
+      (ref) => DownloadsNotifier(
         ref.watch(apiClientProvider),
         ref,
         enabled: ref.watch(appForegroundProvider),
-      );
-    });
+        activePollingInterval: ref.watch(downloadsPollingIntervalProvider),
+      ),
+      dependencies: [downloadsPollingIntervalProvider],
+    );
 
 class DownloadsNotifier extends StateNotifier<DownloadsState> {
   final LemonadeApiClient _api;
   final Ref _ref;
+  final Duration _activePollingInterval;
   final Map<String, ({int bytes, DateTime time, double speed})> _speeds = {};
   Timer? _timer;
   bool _fetching = false;
 
-  DownloadsNotifier(this._api, this._ref, {required bool enabled})
-    : super(const DownloadsState(loading: true)) {
+  Duration get activePollingInterval => _activePollingInterval;
+
+  DownloadsNotifier(
+    this._api,
+    this._ref, {
+    required bool enabled,
+    required Duration activePollingInterval,
+  }) : _activePollingInterval = activePollingInterval,
+       super(const DownloadsState(loading: true)) {
     if (enabled) refresh();
   }
 
@@ -326,17 +345,18 @@ class DownloadsNotifier extends StateNotifier<DownloadsState> {
   void _schedule() {
     _timer?.cancel();
     final delay = state.jobs.any((job) => job.running)
-        ? const Duration(seconds: 2)
+        ? _activePollingInterval
         : const Duration(seconds: 10);
     _timer = Timer(delay, refresh);
   }
 
-  Future<void> startPull(PullRequestOptions options) async {
+  Future<DownloadJob> startPull(PullRequestOptions options) async {
     final job = await _api.startPull(options);
     state = state.copyWith(
       jobs: [job, ...state.jobs.where((existing) => existing.id != job.id)],
     );
     _schedule();
+    return job;
   }
 
   Future<void> updateModel(String modelName) async {

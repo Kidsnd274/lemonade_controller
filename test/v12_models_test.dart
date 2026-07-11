@@ -1,10 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/models/download_job.dart';
 import 'package:lemonade_controller/models/health_info.dart';
 import 'package:lemonade_controller/models/lemonade_load_options.dart';
 import 'package:lemonade_controller/models/lemonade_model.dart';
+import 'package:lemonade_controller/models/pull_request_options.dart';
 import 'package:lemonade_controller/models/server_profile.dart';
 import 'package:lemonade_controller/models/system_stats.dart';
+import 'package:lemonade_controller/providers/api_providers.dart';
+import 'package:lemonade_controller/providers/service_providers.dart';
 
 void main() {
   group('Lemonade Server 10.10 response models', () {
@@ -77,6 +81,42 @@ void main() {
       expect(job.canPause, isTrue);
       expect(job.cumulativeBytesDownloaded, 90);
       expect(job.canResume, isFalse);
+    });
+
+    test('starts pulls as detached server-owned download jobs', () {
+      final json = const PullRequestOptions(
+        modelName: 'user.Qwen',
+        checkpoint: 'org/Qwen-GGUF:Q4_K_M',
+        recipe: 'llamacpp',
+      ).toJson();
+
+      expect(json['stream'], isTrue);
+      expect(json['subscribe'], isFalse);
+    });
+
+    test('scopes fast download polling to the Pull page container', () {
+      final root = ProviderContainer(
+        overrides: [appForegroundProvider.overrideWith((ref) => false)],
+      );
+      addTearDown(root.dispose);
+      final pullPage = ProviderContainer(
+        parent: root,
+        overrides: [
+          downloadsPollingIntervalProvider.overrideWithValue(
+            const Duration(milliseconds: 500),
+          ),
+        ],
+      );
+      addTearDown(pullPage.dispose);
+
+      expect(
+        pullPage.read(downloadsProvider.notifier).activePollingInterval,
+        const Duration(milliseconds: 500),
+      );
+      expect(
+        root.read(downloadsProvider.notifier).activePollingInterval,
+        const Duration(seconds: 2),
+      );
     });
 
     test('persists credentials and WebSocket override in profiles', () {

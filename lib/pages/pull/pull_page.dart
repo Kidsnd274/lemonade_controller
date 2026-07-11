@@ -2,10 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lemonade_controller/models/download_job.dart';
 import 'package:lemonade_controller/models/lemonade_model.dart';
-import 'package:lemonade_controller/models/pull_progress_event.dart';
 import 'package:lemonade_controller/models/pull_request_options.dart';
 import 'package:lemonade_controller/models/pull_variants.dart';
+import 'package:lemonade_controller/pages/widgets/action_feedback.dart';
 import 'package:lemonade_controller/providers/api_providers.dart';
 import 'package:lemonade_controller/providers/service_providers.dart';
 import 'package:lemonade_controller/utils/format.dart';
@@ -40,6 +41,7 @@ class _PullPageState extends ConsumerState<PullPage> {
   String? _variantsError;
   final _otherVariantController = TextEditingController();
   bool _submitting = false;
+  String? _currentDownloadId;
 
   bool _userEditedRecipe = false;
   final Set<String> _userTouchedLabels = {};
@@ -242,8 +244,9 @@ class _PullPageState extends ConsumerState<PullPage> {
 
     setState(() => _submitting = true);
     try {
-      await ref.read(downloadsProvider.notifier).startPull(options);
+      final job = await ref.read(downloadsProvider.notifier).startPull(options);
       if (!mounted) return;
+      setState(() => _currentDownloadId = job.id);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Started downloading "$modelName"')),
       );
@@ -261,6 +264,8 @@ class _PullPageState extends ConsumerState<PullPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final systemInfoAsync = ref.watch(systemInfoProvider);
+    final downloadsState = ref.watch(downloadsProvider);
+    final currentDownload = _resolveCurrentDownload(downloadsState);
 
     final availableRecipes = systemInfoAsync.whenOrNull(
       data: (info) => info.recipes.keys.toList(),
@@ -271,10 +276,35 @@ class _PullPageState extends ConsumerState<PullPage> {
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 700),
-          child: _buildForm(theme, availableRecipes),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildForm(theme, availableRecipes),
+              if (currentDownload != null) ...[
+                const SizedBox(height: 24),
+                _ActiveDownload(
+                  job: currentDownload,
+                  pollingError: downloadsState.error,
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  DownloadJob? _resolveCurrentDownload(DownloadsState state) {
+    final currentId = _currentDownloadId;
+    if (currentId != null) {
+      for (final job in state.jobs) {
+        if (job.id == currentId) return job;
+      }
+    }
+    for (final job in state.jobs) {
+      if (job.running) return job;
+    }
+    return null;
   }
 
   Widget _buildForm(ThemeData theme, List<String>? availableRecipes) {
@@ -673,11 +703,11 @@ class _PullPageState extends ConsumerState<PullPage> {
   }
 }
 
-// ignore: unused_element
-class _ActiveDownloads extends StatelessWidget {
-  final Map<String, PullProgressEvent> progress;
+class _ActiveDownload extends StatelessWidget {
+  final DownloadJob job;
+  final String? pollingError;
 
-  const _ActiveDownloads({required this.progress});
+  const _ActiveDownload({required this.job, this.pollingError});
 
   @override
   Widget build(BuildContext context) {
@@ -703,7 +733,7 @@ class _ActiveDownloads extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'Active Downloads',
+                  'Current Download',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -711,9 +741,15 @@ class _ActiveDownloads extends StatelessWidget {
               ],
             ),
             const Divider(height: 24),
-            for (final entry in progress.entries) ...[
-              _DownloadRow(modelName: entry.key, event: entry.value),
+            _DownloadRow(job: job),
+            if (pollingError != null) ...[
               const SizedBox(height: 8),
+              Text(
+                pollingError!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
             ],
           ],
         ),
@@ -723,16 +759,21 @@ class _ActiveDownloads extends StatelessWidget {
 }
 
 class _DownloadRow extends ConsumerWidget {
-  final String modelName;
-  final PullProgressEvent event;
+  final DownloadJob job;
 
-  const _DownloadRow({required this.modelName, required this.event});
+  const _DownloadRow({required this.job});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final percent = event.percent ?? 0;
-    final inProgress = !event.isComplete && !event.isError;
+    final percent = job.percent.clamp(0, 100).toDouble();
+    final inProgress = job.running;
+    final overallTotal = job.totalDownloadSize > 0
+        ? job.totalDownloadSize
+        : job.bytesTotal;
+    final overallDone = job.cumulativeBytesDownloaded > 0
+        ? job.cumulativeBytesDownloaded
+        : job.bytesDownloaded;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -741,20 +782,20 @@ class _DownloadRow extends ConsumerWidget {
           children: [
             Expanded(
               child: Text(
-                LemonadeModel.stripIdPrefix(modelName),
+                LemonadeModel.stripIdPrefix(job.modelName),
                 style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w600,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            if (event.isComplete)
+            if (job.complete || job.status == DownloadStatus.completed)
               Icon(Icons.check_circle, size: 18, color: Colors.green)
-            else if (event.isError)
+            else if (job.status == DownloadStatus.error)
               Icon(Icons.error, size: 18, color: theme.colorScheme.error)
             else
               Text(
-                '$percent%',
+                '${percent.toStringAsFixed(0)}%',
                 style: theme.textTheme.labelMedium?.copyWith(
                   fontWeight: FontWeight.w600,
                   color: theme.colorScheme.primary,
@@ -769,72 +810,73 @@ class _DownloadRow extends ConsumerWidget {
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                 color: theme.colorScheme.onSurfaceVariant,
-                onPressed: () {
-                  // Legacy SSE row retained only for source compatibility;
-                  // server-owned downloads are controlled on DownloadsPage.
-                },
+                onPressed: () => runWithErrorFeedback(
+                  context,
+                  () => ref
+                      .read(downloadsProvider.notifier)
+                      .control(job, 'cancel'),
+                ),
               ),
             ],
           ],
         ),
         const SizedBox(height: 4),
-        if (event.isError)
+        if (job.status == DownloadStatus.error)
           Text(
-            event.errorMessage ?? 'Download failed',
+            job.error ?? 'Download failed',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.error,
             ),
           )
-        else if (event.isComplete)
+        else if (job.complete || job.status == DownloadStatus.completed)
           Text(
             'Download complete',
             style: theme.textTheme.bodySmall?.copyWith(color: Colors.green),
           )
         else ...[
-          LinearProgressIndicator(
-            value: percent / 100.0,
-            borderRadius: BorderRadius.circular(4),
+          TweenAnimationBuilder<double>(
+            tween: Tween(end: percent / 100),
+            duration: const Duration(milliseconds: 450),
+            builder: (context, value, _) => LinearProgressIndicator(
+              value: value,
+              borderRadius: BorderRadius.circular(4),
+            ),
           ),
           const SizedBox(height: 4),
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
             children: [
-              if (event.file != null)
-                Expanded(
-                  child: Text(
-                    event.file!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              if (event.fileIndex != null && event.totalFiles != null)
+              if (job.file?.isNotEmpty == true)
                 Text(
-                  'File ${event.fileIndex}/${event.totalFiles}',
+                  job.file!,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-              if (event.bytesDownloaded != null &&
-                  event.bytesTotal != null) ...[
-                const SizedBox(width: 8),
+              if (job.totalFiles > 0)
                 Text(
-                  '${formatFileSize(event.bytesDownloaded!.toDouble())} / ${formatFileSize(event.bytesTotal!.toDouble())}',
+                  'File ${job.fileIndex}/${job.totalFiles}',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-              ],
-              if (event.speedBytesPerSec != null) ...[
-                const SizedBox(width: 8),
+              if (overallTotal > 0)
                 Text(
-                  formatSpeed(event.speedBytesPerSec!),
+                  '${formatFileSize(overallDone.toDouble())} / '
+                  '${formatFileSize(overallTotal.toDouble())}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              if (job.speedBytesPerSecond != null)
+                Text(
+                  formatSpeed(job.speedBytesPerSecond!),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.primary,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-              ],
             ],
           ),
         ],

@@ -7,6 +7,7 @@ import 'package:lemonade_controller/pages/models_list/models_page.dart';
 import 'package:lemonade_controller/pages/presets/presets_page.dart';
 import 'package:lemonade_controller/pages/pull/pull_page.dart';
 import 'package:lemonade_controller/pages/widgets/nav_item.dart';
+import 'package:lemonade_controller/providers/api_providers.dart';
 import 'package:lemonade_controller/pages/settings/settings_page.dart';
 import 'package:lemonade_controller/pages/widgets/drawer_content.dart';
 import 'package:lemonade_controller/providers/providers.dart';
@@ -49,7 +50,14 @@ class _MainPageState extends ConsumerState<MainPage>
       title: 'Pull',
       icon: Icons.download_outlined,
       selectedIcon: Icons.download,
-      page: const PullPage(),
+      page: ProviderScope(
+        overrides: [
+          downloadsPollingIntervalProvider.overrideWithValue(
+            const Duration(milliseconds: 500),
+          ),
+        ],
+        child: const PullPage(),
+      ),
     ),
     NavItem(
       title: 'Downloads',
