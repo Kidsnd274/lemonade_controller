@@ -46,9 +46,7 @@ class _ModelParamsJsonEditorPageState extends State<ModelParamsJsonEditorPage> {
       for (final entry in decoded.entries) {
         if (entry.key.startsWith('_')) continue;
         if (entry.value is! num) {
-          setState(
-            () => _error = 'Value for "${entry.key}" must be a number',
-          );
+          setState(() => _error = 'Value for "${entry.key}" must be a number');
           return null;
         }
         result[entry.key] = (entry.value as num).toDouble();
@@ -175,7 +173,9 @@ class _ModelParamsJsonEditorPageState extends State<ModelParamsJsonEditorPage> {
                   decoration: InputDecoration(
                     border: const OutlineInputBorder(),
                     contentPadding: const EdgeInsets.all(12),
-                    fillColor: colorScheme.surfaceContainerHighest.withAlpha(40),
+                    fillColor: colorScheme.surfaceContainerHighest.withAlpha(
+                      40,
+                    ),
                     filled: true,
                   ),
                 ),

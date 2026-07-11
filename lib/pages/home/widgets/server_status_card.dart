@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/models/lemonade_model.dart';
 import 'package:lemonade_controller/pages/home/widgets/dashboard_card.dart';
 import 'package:lemonade_controller/providers/api_providers.dart';
+import 'package:lemonade_controller/providers/service_providers.dart';
+import 'package:lemonade_controller/services/settings_service.dart';
 
 class ServerStatusCard extends ConsumerWidget {
   const ServerStatusCard({super.key});
@@ -18,16 +20,52 @@ class ServerStatusCard extends ConsumerWidget {
       child: healthAsync.when(
         data: (health) {
           final loadedByType = health.loadedCountByType;
+          final settings = ref.watch(settingsProvider).value;
+          final profile = ref.watch(activeServerProfileProvider);
+          final warningKey = '${profile.id}@${health.version}';
+          final showCompatibilityWarning =
+              health.isOlderThanRecommended &&
+              !(settings?.dismissedCompatibilityWarnings.contains(warningKey) ??
+                  false);
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (showCompatibilityWarning) ...[
+                Container(
+                  padding: const EdgeInsets.only(left: 12),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.secondaryContainer,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.info_outline, size: 18),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Older Lemonade Server detected. Some features may not work.',
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        tooltip: 'Dismiss',
+                        onPressed: () => ref
+                            .read(settingsProvider.notifier)
+                            .dismissCompatibilityWarning(
+                              profile.id,
+                              health.version,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               Row(
                 children: [
                   Icon(
-                    health.isHealthy
-                        ? Icons.check_circle
-                        : Icons.error,
+                    health.isHealthy ? Icons.check_circle : Icons.error,
                     color: health.isHealthy
                         ? Colors.green
                         : theme.colorScheme.error,
@@ -87,11 +125,13 @@ class ServerStatusCard extends ConsumerWidget {
                 runSpacing: 6,
                 children: health.maxModels.entries.map((entry) {
                   final used = loadedByType[entry.key] ?? 0;
+                  final pinned = health.pinnedModels[entry.key] ?? 0;
                   final max = entry.value;
                   return _SlotChip(
                     label: entry.key.toUpperCase(),
                     used: used,
                     max: max,
+                    pinned: pinned,
                   );
                 }).toList(),
               ),
@@ -140,11 +180,13 @@ class _SlotChip extends StatelessWidget {
   final String label;
   final int used;
   final int max;
+  final int pinned;
 
   const _SlotChip({
     required this.label,
     required this.used,
     required this.max,
+    this.pinned = 0,
   });
 
   @override
@@ -161,7 +203,7 @@ class _SlotChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
       ),
       child: Text(
-        '$label $used/$max',
+        '$label $used/${max == -1 ? '∞' : max}${pinned > 0 ? ' · $pinned pinned' : ''}',
         style: theme.textTheme.labelSmall?.copyWith(
           fontWeight: FontWeight.w600,
           color: isActive

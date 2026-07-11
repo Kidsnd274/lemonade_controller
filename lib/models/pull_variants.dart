@@ -69,16 +69,19 @@ class PullVariants {
       checkpoint: json['checkpoint']?.toString() ?? '',
       recipe: json['recipe']?.toString() ?? '',
       suggestedName: json['suggested_name']?.toString() ?? '',
-      suggestedLabels: (json['suggested_labels'] as List?)
+      suggestedLabels:
+          (json['suggested_labels'] as List?)
               ?.map((e) => e.toString())
               .toList() ??
           [],
-      mmprojFiles: (json['mmproj_files'] as List?)
-              ?.map((e) => e.toString())
-              .toList() ??
+      mmprojFiles:
+          (json['mmproj_files'] as List?)?.map((e) => e.toString()).toList() ??
           [],
-      variants: (json['variants'] as List?)
-              ?.map((e) => PullVariant.fromJson((e as Map).cast<String, dynamic>()))
+      variants:
+          (json['variants'] as List?)
+              ?.map(
+                (e) => PullVariant.fromJson((e as Map).cast<String, dynamic>()),
+              )
               .toList() ??
           [],
     );

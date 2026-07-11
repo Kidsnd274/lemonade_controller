@@ -70,7 +70,6 @@ class ServerProfileHeader extends ConsumerWidget {
       ),
     );
   }
-
 }
 
 class _ServerInfoTile extends StatelessWidget {
@@ -106,7 +105,11 @@ class _ServerInfoTile extends StatelessWidget {
             child: Row(
               children: [
                 if (p.id == profile.id)
-                  Icon(Icons.check_rounded, size: 18, color: colorScheme.primary)
+                  Icon(
+                    Icons.check_rounded,
+                    size: 18,
+                    color: colorScheme.primary,
+                  )
                 else
                   const SizedBox(width: 18),
                 const SizedBox(width: 12),
@@ -118,8 +121,9 @@ class _ServerInfoTile extends StatelessWidget {
                       Text(
                         p.name,
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight:
-                              p.id == profile.id ? FontWeight.w600 : null,
+                          fontWeight: p.id == profile.id
+                              ? FontWeight.w600
+                              : null,
                         ),
                       ),
                       Text(

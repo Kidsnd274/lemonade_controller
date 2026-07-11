@@ -6,9 +6,16 @@ class LemonadeLoadOptionsModel {
   final String? llamacppArgs;
   final String? whispercppBackend;
   final String? whispercppArgs;
-  final String? steps;
-  final String? width;
-  final String? height;
+  final int? steps;
+  final int? width;
+  final int? height;
+  final double? cfgScale;
+  final bool? pinned;
+  final bool? mergeArgs;
+  final bool? autoEvict;
+  final int? downsizeIdleTimeout;
+  final int? evictIdleTimeout;
+  final double? evictWeightFactor;
 
   LemonadeLoadOptionsModel({
     required this.modelName,
@@ -21,6 +28,13 @@ class LemonadeLoadOptionsModel {
     this.steps,
     this.width,
     this.height,
+    this.cfgScale,
+    this.pinned,
+    this.mergeArgs,
+    this.autoEvict,
+    this.downsizeIdleTimeout,
+    this.evictIdleTimeout,
+    this.evictWeightFactor,
   });
 
   LemonadeLoadOptionsModel copyWith({
@@ -31,9 +45,16 @@ class LemonadeLoadOptionsModel {
     String? llamacppArgs,
     String? whispercppBackend,
     String? whispercppArgs,
-    String? steps,
-    String? width,
-    String? height,
+    int? steps,
+    int? width,
+    int? height,
+    double? cfgScale,
+    bool? pinned,
+    bool? mergeArgs,
+    bool? autoEvict,
+    int? downsizeIdleTimeout,
+    int? evictIdleTimeout,
+    double? evictWeightFactor,
   }) {
     return LemonadeLoadOptionsModel(
       modelName: modelName ?? this.modelName,
@@ -46,6 +67,13 @@ class LemonadeLoadOptionsModel {
       steps: steps ?? this.steps,
       width: width ?? this.width,
       height: height ?? this.height,
+      cfgScale: cfgScale ?? this.cfgScale,
+      pinned: pinned ?? this.pinned,
+      mergeArgs: mergeArgs ?? this.mergeArgs,
+      autoEvict: autoEvict ?? this.autoEvict,
+      downsizeIdleTimeout: downsizeIdleTimeout ?? this.downsizeIdleTimeout,
+      evictIdleTimeout: evictIdleTimeout ?? this.evictIdleTimeout,
+      evictWeightFactor: evictWeightFactor ?? this.evictWeightFactor,
     );
   }
 
@@ -61,9 +89,22 @@ class LemonadeLoadOptionsModel {
       llamacppArgs: json['llamacpp_args']?.toString(),
       whispercppBackend: json['whispercpp_backend']?.toString(),
       whispercppArgs: json['whispercpp_args']?.toString(),
-      steps: json['steps']?.toString(),
-      width: json['width']?.toString(),
-      height: json['height']?.toString(),
+      steps:
+          (json['steps'] as num?)?.toInt() ??
+          int.tryParse(json['steps']?.toString() ?? ''),
+      width:
+          (json['width'] as num?)?.toInt() ??
+          int.tryParse(json['width']?.toString() ?? ''),
+      height:
+          (json['height'] as num?)?.toInt() ??
+          int.tryParse(json['height']?.toString() ?? ''),
+      cfgScale: (json['cfg_scale'] as num?)?.toDouble(),
+      pinned: json['pinned'] as bool?,
+      mergeArgs: json['merge_args'] as bool?,
+      autoEvict: json['auto_evict'] as bool?,
+      downsizeIdleTimeout: (json['downsize_idle_timeout'] as num?)?.toInt(),
+      evictIdleTimeout: (json['evict_idle_timeout'] as num?)?.toInt(),
+      evictWeightFactor: (json['evict_weight_factor'] as num?)?.toDouble(),
     );
   }
 
@@ -80,6 +121,14 @@ class LemonadeLoadOptionsModel {
       if (steps != null) 'steps': steps,
       if (width != null) 'width': width,
       if (height != null) 'height': height,
+      if (cfgScale != null) 'cfg_scale': cfgScale,
+      if (pinned != null) 'pinned': pinned,
+      if (mergeArgs != null) 'merge_args': mergeArgs,
+      if (autoEvict != null) 'auto_evict': autoEvict,
+      if (downsizeIdleTimeout != null)
+        'downsize_idle_timeout': downsizeIdleTimeout,
+      if (evictIdleTimeout != null) 'evict_idle_timeout': evictIdleTimeout,
+      if (evictWeightFactor != null) 'evict_weight_factor': evictWeightFactor,
     };
   }
 

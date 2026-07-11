@@ -104,16 +104,21 @@ class _BackendRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final (Color bgColor, Color fgColor, String label) = switch (backend.state) {
-      'installed' => (
-        Colors.green.withAlpha(30),
-        Colors.green,
-        'installed',
-      ),
+    final (
+      Color bgColor,
+      Color fgColor,
+      String label,
+    ) = switch (backend.state) {
+      'installed' => (Colors.green.withAlpha(30), Colors.green, 'installed'),
       'installable' => (
         theme.colorScheme.primaryContainer,
         theme.colorScheme.onPrimaryContainer,
         'installable',
+      ),
+      'update_required' => (
+        theme.colorScheme.errorContainer,
+        theme.colorScheme.onErrorContainer,
+        'update required',
       ),
       'unsupported' => (
         theme.colorScheme.surfaceContainerHighest,
@@ -129,41 +134,56 @@ class _BackendRow extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 70,
-            child: Text(
-              name,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w500,
+          Row(
+            children: [
+              SizedBox(
+                width: 70,
+                child: Text(
+                  name,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  label,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: fgColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (backend.version != null && backend.version!.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Text(
+                  backend.version!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ],
           ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: bgColor,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              label,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: fgColor,
-                fontWeight: FontWeight.w600,
+          if (backend.message?.isNotEmpty == true)
+            Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Text(
+                backend.message!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
-          ),
-          if (backend.version != null && backend.version!.isNotEmpty) ...[
-            const SizedBox(width: 8),
-            Text(
-              backend.version!,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
         ],
       ),
     );

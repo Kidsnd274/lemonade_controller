@@ -42,10 +42,7 @@ class DashboardCard extends StatelessWidget {
                     color: theme.colorScheme.onSurface,
                   ),
                 ),
-                if (trailing != null) ...[
-                  const Spacer(),
-                  trailing!,
-                ],
+                if (trailing != null) ...[const Spacer(), trailing!],
               ],
             ),
           ),

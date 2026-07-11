@@ -59,11 +59,13 @@ class _PresetEditorPageState extends ConsumerState<PresetEditorPage> {
         widget.existingPreset!.copyWith(name: name, entries: _entries),
       );
     } else {
-      await notifier.addPreset(ModelLoadPreset(
-        id: ModelLoadPreset.generateId(),
-        name: name,
-        entries: _entries,
-      ));
+      await notifier.addPreset(
+        ModelLoadPreset(
+          id: ModelLoadPreset.generateId(),
+          name: name,
+          entries: _entries,
+        ),
+      );
     }
 
     if (mounted) Navigator.of(context).pop();
@@ -232,6 +234,8 @@ class _EntryTile extends StatelessWidget {
     if (entry.ctxSize != null) extras.add('ctx: ${entry.ctxSize}');
     if (entry.llamacppBackend != null) extras.add(entry.llamacppBackend!);
     if (entry.llamacppArgs != null) extras.add('args: ${entry.llamacppArgs}');
+    if (entry.pinned == true) extras.add('pinned');
+    if (entry.autoEvict == true) extras.add('auto-evict');
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -270,11 +274,7 @@ class _EntryTile extends StatelessWidget {
               onPressed: onConfigure,
             ),
             IconButton(
-              icon: Icon(
-                Icons.close,
-                size: 20,
-                color: theme.colorScheme.error,
-              ),
+              icon: Icon(Icons.close, size: 20, color: theme.colorScheme.error),
               tooltip: 'Remove',
               onPressed: onRemove,
             ),
@@ -355,11 +355,13 @@ class _ModelPickerDialogState extends State<_ModelPickerDialog> {
     if (_query.isNotEmpty) {
       final q = _query.toLowerCase();
       models = models
-          .where((m) =>
-              m.id.toLowerCase().contains(q) ||
-              m.checkpoint.toLowerCase().contains(q) ||
-              m.recipe.toLowerCase().contains(q) ||
-              m.labels.any((l) => l.toLowerCase().contains(q)))
+          .where(
+            (m) =>
+                m.id.toLowerCase().contains(q) ||
+                m.checkpoint.toLowerCase().contains(q) ||
+                m.recipe.toLowerCase().contains(q) ||
+                m.labels.any((l) => l.toLowerCase().contains(q)),
+          )
           .toList();
     }
 
@@ -450,7 +452,10 @@ class _ModelPickerDialogState extends State<_ModelPickerDialog> {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 child: Row(
                   children: [
                     FilterChip(
@@ -483,7 +488,11 @@ class _ModelPickerDialogState extends State<_ModelPickerDialog> {
                     ),
                     if (quantizations.isNotEmpty) ...[
                       const SizedBox(width: 10),
-                      Container(height: 24, width: 1, color: theme.dividerColor),
+                      Container(
+                        height: 24,
+                        width: 1,
+                        color: theme.dividerColor,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: DropdownButtonHideUnderline(
@@ -585,8 +594,8 @@ class _ModelPickerDialogState extends State<_ModelPickerDialog> {
                         itemCount: filtered.length,
                         itemBuilder: (_, i) {
                           final model = filtered[i];
-                          final alreadyAdded =
-                              widget.alreadySelectedIds.contains(model.id);
+                          final alreadyAdded = widget.alreadySelectedIds
+                              .contains(model.id);
                           final selected = _selectedIds.contains(model.id);
 
                           return _PickerModelTile(
@@ -749,8 +758,9 @@ class _EditorVramSummary extends ConsumerWidget {
       VramEstimate? vram;
 
       if (allModels != null) {
-        final model =
-            allModels.where((m) => m.id == entry.modelName).firstOrNull;
+        final model = allModels
+            .where((m) => m.id == entry.modelName)
+            .firstOrNull;
         if (model != null) {
           vram = estimateVramForModel(model, ctxSize: entry.ctxSize);
         }
@@ -816,26 +826,28 @@ class _EditorVramSummary extends ConsumerWidget {
               ),
             if (perModel.isNotEmpty) ...[
               const SizedBox(height: 8),
-              ...perModel.entries.map((e) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            e.key,
-                            style: theme.textTheme.bodySmall,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+              ...perModel.entries.map(
+                (e) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          e.key,
+                          style: theme.textTheme.bodySmall,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        Text(
-                          '~${e.value.toStringAsFixed(1)} GB',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.w500,
-                          ),
+                      ),
+                      Text(
+                        '~${e.value.toStringAsFixed(1)} GB',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w500,
                         ),
-                      ],
-                    ),
-                  )),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ],
         ),
@@ -859,7 +871,12 @@ class _EntryConfigDialog extends StatefulWidget {
 class _EntryConfigDialogState extends State<_EntryConfigDialog> {
   late final TextEditingController _ctxSizeController;
   late final TextEditingController _llamacppArgsController;
+  late final TextEditingController _downsizeController;
+  late final TextEditingController _evictController;
+  late final TextEditingController _weightController;
   String? _llamacppBackend;
+  late bool _pinned;
+  bool? _autoEvict;
 
   @override
   void initState() {
@@ -870,15 +887,30 @@ class _EntryConfigDialogState extends State<_EntryConfigDialog> {
     _llamacppArgsController = TextEditingController(
       text: widget.entry.llamacppArgs ?? '',
     );
+    _downsizeController = TextEditingController(
+      text: widget.entry.downsizeIdleTimeout?.toString() ?? '',
+    );
+    _evictController = TextEditingController(
+      text: widget.entry.evictIdleTimeout?.toString() ?? '',
+    );
+    _weightController = TextEditingController(
+      text: widget.entry.evictWeightFactor?.toString() ?? '',
+    );
+    _pinned = widget.entry.pinned ?? false;
+    _autoEvict = widget.entry.autoEvict;
     final stored = widget.entry.llamacppBackend;
-    _llamacppBackend =
-        (stored != null && _llamacppBackends.contains(stored)) ? stored : null;
+    _llamacppBackend = (stored != null && _llamacppBackends.contains(stored))
+        ? stored
+        : null;
   }
 
   @override
   void dispose() {
     _ctxSizeController.dispose();
     _llamacppArgsController.dispose();
+    _downsizeController.dispose();
+    _evictController.dispose();
+    _weightController.dispose();
     super.dispose();
   }
 
@@ -891,6 +923,11 @@ class _EntryConfigDialogState extends State<_EntryConfigDialog> {
       ctxSize: ctxText.isNotEmpty ? int.tryParse(ctxText) : null,
       llamacppBackend: _llamacppBackend,
       llamacppArgs: argsText.isNotEmpty ? argsText : null,
+      pinned: _pinned ? true : null,
+      autoEvict: _autoEvict,
+      downsizeIdleTimeout: int.tryParse(_downsizeController.text.trim()),
+      evictIdleTimeout: int.tryParse(_evictController.text.trim()),
+      evictWeightFactor: double.tryParse(_weightController.text.trim()),
     );
   }
 
@@ -913,6 +950,62 @@ class _EntryConfigDialogState extends State<_EntryConfigDialog> {
                   border: OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.number,
+              ),
+              CheckboxListTile(
+                value: _pinned,
+                onChanged: (value) => setState(() => _pinned = value ?? false),
+                title: const Text('Pin in memory'),
+                contentPadding: EdgeInsets.zero,
+              ),
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                title: const Text('Advanced eviction'),
+                children: [
+                  DropdownButtonFormField<bool?>(
+                    initialValue: _autoEvict,
+                    decoration: const InputDecoration(
+                      labelText: 'Auto eviction',
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: null,
+                        child: Text('Server default'),
+                      ),
+                      DropdownMenuItem(value: true, child: Text('Enabled')),
+                      DropdownMenuItem(value: false, child: Text('Disabled')),
+                    ],
+                    onChanged: (value) => setState(() => _autoEvict = value),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _downsizeController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Downsize timeout (seconds)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _evictController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Evict timeout (seconds)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _weightController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Eviction weight',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String?>(

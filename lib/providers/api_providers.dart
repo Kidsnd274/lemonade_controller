@@ -1,23 +1,51 @@
-import 'package:dio/dio.dart';
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:lemonade_controller/models/api_error.dart';
+import 'package:lemonade_controller/models/download_job.dart';
 import 'package:lemonade_controller/models/health_info.dart';
 import 'package:lemonade_controller/models/lemonade_load_options.dart';
 import 'package:lemonade_controller/models/lemonade_model.dart';
 import 'package:lemonade_controller/models/lemonade_unload_options.dart';
 import 'package:lemonade_controller/models/loaded_model.dart';
 import 'package:lemonade_controller/models/model_load_preset.dart';
-import 'package:lemonade_controller/models/pull_progress_event.dart';
+import 'package:lemonade_controller/models/model_files.dart';
 import 'package:lemonade_controller/models/pull_request_options.dart';
+import 'package:lemonade_controller/models/request_stats.dart';
+import 'package:lemonade_controller/models/server_profile.dart';
+import 'package:lemonade_controller/models/system_stats.dart';
 import 'package:lemonade_controller/models/system_info.dart';
 import 'package:lemonade_controller/providers/service_providers.dart';
 import 'package:lemonade_controller/services/api_client.dart';
+import 'package:lemonade_controller/services/settings_service.dart';
 
 final modelsProvider = FutureProvider<List<LemonadeModel>>((ref) async {
   final apiClient = ref.watch(apiClientProvider);
   final response = await apiClient.getModelsList();
   return response.map((json) => LemonadeModel.fromJson(json)).toList();
 });
+
+/// Session-only record of endpoints an individual server does not expose.
+final endpointCapabilitiesProvider =
+    StateNotifierProvider<EndpointCapabilitiesNotifier, Map<String, bool>>(
+      (ref) => EndpointCapabilitiesNotifier(),
+    );
+
+class EndpointCapabilitiesNotifier extends StateNotifier<Map<String, bool>> {
+  EndpointCapabilitiesNotifier() : super(const {});
+
+  void markUnsupported(ServerProfile profile, String endpoint) {
+    state = {...state, '${profile.id}:$endpoint': false};
+  }
+
+  void clearProfile(ServerProfile profile) {
+    state = {
+      for (final entry in state.entries)
+        if (!entry.key.startsWith('${profile.id}:')) entry.key: entry.value,
+    };
+  }
+}
 
 final loadingModelsProvider =
     StateNotifierProvider<LoadingModelsNotifier, Set<String>>((ref) {
@@ -108,8 +136,9 @@ final isModelLoadingProvider = Provider.family<bool, String>((ref, modelId) {
 
 final isModelLoadedProvider = Provider.family<bool, String>((ref, modelId) {
   return ref.watch(
-    loadedModelsProvider
-        .select((state) => state.any((m) => m.modelName == modelId)),
+    loadedModelsProvider.select(
+      (state) => state.any((m) => m.modelName == modelId),
+    ),
   );
 });
 
@@ -124,6 +153,23 @@ final healthInfoProvider = FutureProvider<HealthInfo>((ref) async {
   final json = await api.getHealth();
   return HealthInfo.fromJson(json);
 });
+
+final modelFilesProvider = FutureProvider.autoDispose
+    .family<ModelFiles, String>((ref, modelId) async {
+      try {
+        return await ref.watch(apiClientProvider).getModelFiles(modelId);
+      } on LemonadeApiException catch (error) {
+        if (error.isUnsupported) {
+          ref
+              .read(endpointCapabilitiesProvider.notifier)
+              .markUnsupported(
+                ref.read(activeServerProfileProvider),
+                'model-files',
+              );
+        }
+        rethrow;
+      }
+    });
 
 final presetLoadingProvider =
     StateNotifierProvider<PresetLoadingNotifier, Set<String>>((ref) {
@@ -160,134 +206,277 @@ class PresetLoadingNotifier extends StateNotifier<Set<String>> {
   }
 }
 
-final isPresetLoadingProvider =
-    Provider.family<bool, String>((ref, presetId) {
+final isPresetLoadingProvider = Provider.family<bool, String>((ref, presetId) {
   return ref.watch(
     presetLoadingProvider.select((state) => state.contains(presetId)),
   );
 });
 
-// ---------------------------------------------------------------------------
-// Pull (download) progress
-// ---------------------------------------------------------------------------
+class DownloadsState {
+  final List<DownloadJob> jobs;
+  final bool loading;
+  final String? error;
+  final bool unsupported;
 
-final pullProgressProvider = StateNotifierProvider<PullProgressNotifier,
-    Map<String, PullProgressEvent>>((ref) {
-  final apiClient = ref.watch(apiClientProvider);
-  return PullProgressNotifier(apiClient, ref);
-});
+  const DownloadsState({
+    this.jobs = const [],
+    this.loading = false,
+    this.error,
+    this.unsupported = false,
+  });
 
-class PullProgressNotifier
-    extends StateNotifier<Map<String, PullProgressEvent>> {
-  final LemonadeApiClient _apiClient;
+  DownloadsState copyWith({
+    List<DownloadJob>? jobs,
+    bool? loading,
+    String? error,
+    bool clearError = false,
+    bool? unsupported,
+  }) => DownloadsState(
+    jobs: jobs ?? this.jobs,
+    loading: loading ?? this.loading,
+    error: clearError ? null : error ?? this.error,
+    unsupported: unsupported ?? this.unsupported,
+  );
+}
+
+final downloadsProvider =
+    StateNotifierProvider.autoDispose<DownloadsNotifier, DownloadsState>((ref) {
+      return DownloadsNotifier(
+        ref.watch(apiClientProvider),
+        ref,
+        enabled: ref.watch(appForegroundProvider),
+      );
+    });
+
+class DownloadsNotifier extends StateNotifier<DownloadsState> {
+  final LemonadeApiClient _api;
   final Ref _ref;
-  final Map<String, _SpeedTracker> _speedTrackers = {};
-  final Map<String, CancelToken> _cancelTokens = {};
+  final Map<String, ({int bytes, DateTime time, double speed})> _speeds = {};
+  Timer? _timer;
+  bool _fetching = false;
 
-  PullProgressNotifier(this._apiClient, this._ref) : super({});
+  DownloadsNotifier(this._api, this._ref, {required bool enabled})
+    : super(const DownloadsState(loading: true)) {
+    if (enabled) refresh();
+  }
 
-  Future<void> startPull(PullRequestOptions options) async {
-    final modelName = options.modelName;
-    final cancelToken = CancelToken();
-
-    _speedTrackers[modelName] = _SpeedTracker();
-    _cancelTokens[modelName] = cancelToken;
-    state = {
-      ...state,
-      modelName: const PullProgressEvent(
-        eventType: PullEventType.progress,
-        percent: 0,
-      ),
-    };
-
+  Future<void> refresh() async {
+    if (_fetching || state.unsupported) return;
+    _fetching = true;
     try {
-      await for (final event in _apiClient.pullModel(
-        options,
-        cancelToken: cancelToken,
+      final raw = await _api.getDownloads();
+      final jobs = raw.map(_withSpeed).toList();
+      final completedBefore = state.jobs
+          .where((job) => job.complete)
+          .map((job) => job.id)
+          .toSet();
+      state = state.copyWith(jobs: jobs, loading: false, clearError: true);
+      if (jobs.any(
+        (job) => job.complete && !completedBefore.contains(job.id),
       )) {
-        if (!mounted) return;
-
-        final enriched = _enrichWithSpeed(modelName, event);
-        state = {...state, modelName: enriched};
-
-        if (event.isComplete) {
-          _cleanupPull(modelName);
-          _ref.invalidate(modelsProvider);
-          await Future.delayed(const Duration(seconds: 3));
-          if (mounted) {
-            state = Map.from(state)..remove(modelName);
-          }
-          return;
-        }
-
-        if (event.isError) {
-          _cleanupPull(modelName);
-          await Future.delayed(const Duration(seconds: 5));
-          if (mounted) {
-            state = Map.from(state)..remove(modelName);
-          }
-          return;
-        }
+        _ref.invalidate(modelsProvider);
       }
-      // Stream ended naturally (e.g. user cancel) — clear state immediately.
-      _cleanupPull(modelName);
-      if (mounted) {
-        state = Map.from(state)..remove(modelName);
+      _schedule();
+    } on LemonadeApiException catch (error) {
+      if (error.isUnsupported) {
+        _ref
+            .read(endpointCapabilitiesProvider.notifier)
+            .markUnsupported(
+              _ref.read(activeServerProfileProvider),
+              'downloads',
+            );
       }
-    } catch (_) {
-      _cleanupPull(modelName);
-      if (mounted) {
-        state = Map.from(state)..remove(modelName);
-      }
+      state = state.copyWith(
+        loading: false,
+        error: error.message,
+        unsupported: error.isUnsupported,
+      );
+    } finally {
+      _fetching = false;
     }
   }
 
-  /// Aborts an in-flight pull by cancelling the underlying SSE request.
-  /// The server detects the disconnect and stops the download.
-  void cancelPull(String modelName) {
-    final token = _cancelTokens[modelName];
-    if (token == null || token.isCancelled) return;
-    token.cancel('user-cancelled');
-    // The pullModel stream will end via the DioException(cancel) path which
-    // returns without yielding an error; startPull's post-loop cleanup
-    // removes the entry from state.
+  DownloadJob _withSpeed(DownloadJob job) {
+    final now = DateTime.now();
+    final previous = _speeds[job.id];
+    var speed = previous?.speed ?? 0;
+    if (previous != null) {
+      final seconds = now.difference(previous.time).inMilliseconds / 1000;
+      final delta = job.cumulativeBytesDownloaded - previous.bytes;
+      if (seconds > 0 && delta > 0) {
+        final instant = delta / seconds;
+        speed = speed == 0 ? instant : speed * .7 + instant * .3;
+      }
+    }
+    _speeds[job.id] = (
+      bytes: job.cumulativeBytesDownloaded,
+      time: now,
+      speed: speed,
+    );
+    return job.copyWith(speedBytesPerSecond: speed > 0 ? speed : null);
   }
 
-  void _cleanupPull(String modelName) {
-    _speedTrackers.remove(modelName);
-    _cancelTokens.remove(modelName);
+  void _schedule() {
+    _timer?.cancel();
+    final delay = state.jobs.any((job) => job.running)
+        ? const Duration(seconds: 2)
+        : const Duration(seconds: 10);
+    _timer = Timer(delay, refresh);
   }
 
-  PullProgressEvent _enrichWithSpeed(String modelName, PullProgressEvent event) {
-    final tracker = _speedTrackers[modelName];
-    if (tracker == null || event.bytesDownloaded == null) return event;
-    final speed = tracker.update(event.bytesDownloaded!);
-    return event.withSpeed(speed);
+  Future<void> startPull(PullRequestOptions options) async {
+    final job = await _api.startPull(options);
+    state = state.copyWith(
+      jobs: [job, ...state.jobs.where((existing) => existing.id != job.id)],
+    );
+    _schedule();
+  }
+
+  Future<void> updateModel(String modelName) async {
+    final job = await _api.resumePull(modelName);
+    state = state.copyWith(
+      jobs: [job, ...state.jobs.where((existing) => existing.id != job.id)],
+    );
+    _schedule();
+  }
+
+  Future<void> control(DownloadJob job, String action) async {
+    await _api.controlDownload(job.id, action);
+    await refresh();
+  }
+
+  Future<void> resume(DownloadJob job) async {
+    await _api.resumePull(job.modelName);
+    await refresh();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
   }
 }
 
-class _SpeedTracker {
-  int _prevBytes = 0;
-  DateTime _prevTime = DateTime.now();
-  double _smoothedSpeed = 0;
+class PerformanceState {
+  final List<SystemStatsSample> samples;
+  final RequestStats? requestStats;
+  final String? systemError;
+  final String? requestError;
+  final bool systemUnsupported;
+  final bool requestUnsupported;
+  final bool loading;
 
-  /// Returns smoothed speed in bytes/sec using exponential moving average.
-  double? update(int currentBytes) {
-    final now = DateTime.now();
-    final elapsed = now.difference(_prevTime);
-    if (elapsed.inMilliseconds < 200) return _smoothedSpeed > 0 ? _smoothedSpeed : null;
+  const PerformanceState({
+    this.samples = const [],
+    this.requestStats,
+    this.systemError,
+    this.requestError,
+    this.systemUnsupported = false,
+    this.requestUnsupported = false,
+    this.loading = true,
+  });
 
-    final deltaBytes = currentBytes - _prevBytes;
-    if (deltaBytes <= 0) return _smoothedSpeed > 0 ? _smoothedSpeed : null;
+  SystemStats? get latest => samples.isEmpty ? null : samples.last.stats;
+}
 
-    final instantSpeed = deltaBytes / (elapsed.inMilliseconds / 1000.0);
-    // Exponential moving average (alpha=0.3) for smoother display
-    _smoothedSpeed = _smoothedSpeed == 0
-        ? instantSpeed
-        : _smoothedSpeed * 0.7 + instantSpeed * 0.3;
+final performanceProvider =
+    StateNotifierProvider.autoDispose<PerformanceNotifier, PerformanceState>((
+      ref,
+    ) {
+      final seconds =
+          ref.watch(settingsProvider).value?.performanceSampleIntervalSeconds ??
+          AppSettings.defaultPerformanceSampleIntervalSeconds;
+      return PerformanceNotifier(
+        ref.watch(apiClientProvider),
+        seconds,
+        ref,
+        enabled: ref.watch(appForegroundProvider),
+      );
+    });
 
-    _prevBytes = currentBytes;
-    _prevTime = now;
-    return _smoothedSpeed;
+class PerformanceNotifier extends StateNotifier<PerformanceState> {
+  final LemonadeApiClient _api;
+  final int intervalSeconds;
+  final Ref _ref;
+  Timer? _timer;
+  bool _fetching = false;
+
+  PerformanceNotifier(
+    this._api,
+    this.intervalSeconds,
+    this._ref, {
+    required bool enabled,
+  }) : super(const PerformanceState()) {
+    if (enabled) refresh();
+  }
+
+  Future<void> refresh() async {
+    if (_fetching) return;
+    _fetching = true;
+    var systemError = state.systemError;
+    var requestError = state.requestError;
+    var systemUnsupported = state.systemUnsupported;
+    var requestUnsupported = state.requestUnsupported;
+    var samples = state.samples;
+    var requestStats = state.requestStats;
+    if (!systemUnsupported) {
+      try {
+        final stats = await _api.getSystemStats();
+        final now = DateTime.now();
+        samples = [...samples, SystemStatsSample(timestamp: now, stats: stats)]
+            .where((sample) => now.difference(sample.timestamp).inMinutes < 5)
+            .toList();
+        systemError = null;
+      } on LemonadeApiException catch (error) {
+        systemError = error.message;
+        systemUnsupported = error.isUnsupported;
+        if (error.isUnsupported) {
+          _ref
+              .read(endpointCapabilitiesProvider.notifier)
+              .markUnsupported(
+                _ref.read(activeServerProfileProvider),
+                'system-stats',
+              );
+        }
+      }
+    }
+    if (!requestUnsupported) {
+      try {
+        requestStats = await _api.getRequestStats();
+        requestError = null;
+      } on LemonadeApiException catch (error) {
+        requestError = error.message;
+        requestUnsupported = error.isUnsupported;
+        if (error.isUnsupported) {
+          _ref
+              .read(endpointCapabilitiesProvider.notifier)
+              .markUnsupported(
+                _ref.read(activeServerProfileProvider),
+                'request-stats',
+              );
+        }
+      }
+    }
+    state = PerformanceState(
+      samples: samples,
+      requestStats: requestStats,
+      systemError: systemError,
+      requestError: requestError,
+      systemUnsupported: systemUnsupported,
+      requestUnsupported: requestUnsupported,
+      loading: false,
+    );
+    _fetching = false;
+    _timer?.cancel();
+    _timer = Timer(
+      Duration(seconds: intervalSeconds.clamp(2, 3600).toInt()),
+      refresh,
+    );
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
   }
 }

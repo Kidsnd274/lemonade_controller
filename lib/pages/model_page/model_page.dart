@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/models/lemonade_model.dart';
+import 'package:lemonade_controller/models/loaded_model.dart';
 import 'package:lemonade_controller/pages/model_page/configure_load_dialog.dart';
 import 'package:lemonade_controller/providers/api_providers.dart';
+import 'package:lemonade_controller/providers/service_providers.dart';
 import 'package:lemonade_controller/utils/quantization_color.dart';
 import 'package:lemonade_controller/utils/vram_estimator.dart';
 
@@ -16,6 +18,10 @@ class ModelPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isLoaded = ref.watch(isModelLoadedProvider(model.id));
     final isLoading = ref.watch(isModelLoadingProvider(model.id));
+    final loadedModel = ref
+        .watch(loadedModelsProvider)
+        .cast<LoadedModel?>()
+        .firstWhere((item) => item!.modelName == model.id, orElse: () => null);
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -29,7 +35,11 @@ class ModelPage extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _Header(model: model, isLoaded: isLoaded),
+            _Header(
+              model: model,
+              isLoaded: isLoaded,
+              pinned: loadedModel?.pinned ?? false,
+            ),
             const SizedBox(height: 28),
             _ActionButtons(
               model: model,
@@ -42,6 +52,8 @@ class ModelPage extends ConsumerWidget {
             _VramEstimateCard(model: model),
             const SizedBox(height: 20),
             _RecipeOptionsCard(model: model),
+            const SizedBox(height: 20),
+            _ModelFilesCard(modelId: model.id),
           ],
         ),
       ),
@@ -56,8 +68,13 @@ class ModelPage extends ConsumerWidget {
 class _Header extends StatelessWidget {
   final LemonadeModel model;
   final bool isLoaded;
+  final bool pinned;
 
-  const _Header({required this.model, required this.isLoaded});
+  const _Header({
+    required this.model,
+    required this.isLoaded,
+    required this.pinned,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -90,6 +107,18 @@ class _Header extends StatelessWidget {
                       foregroundColor: quantizationForegroundColor(
                         model.quantizationLevel,
                       ),
+                    ),
+                  if (model.updateAvailable)
+                    _Badge(
+                      label: 'Update available',
+                      backgroundColor: theme.colorScheme.tertiaryContainer,
+                      foregroundColor: theme.colorScheme.onTertiaryContainer,
+                    ),
+                  if (pinned)
+                    _Badge(
+                      label: 'Pinned',
+                      backgroundColor: theme.colorScheme.primaryContainer,
+                      foregroundColor: theme.colorScheme.onPrimaryContainer,
                     ),
                 ],
               ),
@@ -260,6 +289,13 @@ class _ActionButtons extends ConsumerWidget {
           label: const Text('Configure & Load'),
         ),
 
+        if (model.updateAvailable)
+          OutlinedButton.icon(
+            onPressed: () => _updateModel(context, ref),
+            icon: const Icon(Icons.system_update_alt),
+            label: const Text('Update'),
+          ),
+
         // Delete
         OutlinedButton.icon(
           onPressed: () => _confirmDelete(context, ref),
@@ -282,6 +318,23 @@ class _ActionButtons extends ConsumerWidget {
     ref
         .read(loadingModelsProvider.notifier)
         .loadModel(model.id, options: options);
+  }
+
+  Future<void> _updateModel(BuildContext context, WidgetRef ref) async {
+    try {
+      await ref.read(apiClientProvider).resumePull(model.id);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Model update started. See Downloads.')),
+        );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    }
   }
 
   void _confirmLoad(BuildContext context, WidgetRef ref) {
@@ -416,9 +469,9 @@ class _ActionButtons extends ConsumerWidget {
                 }
               } catch (e) {
                 if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error: $e')),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text('Error: $e')));
               }
             },
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
@@ -475,15 +528,28 @@ class _ModelDetailsCard extends StatelessWidget {
             ),
             const Divider(height: 24),
             _DetailRow(label: 'Model ID', value: model.id, copyable: true),
-            _DetailRow(label: 'Checkpoint', value: model.checkpoint, copyable: true),
+            _DetailRow(
+              label: 'Checkpoint',
+              value: model.checkpoint,
+              copyable: true,
+            ),
             _DetailRow(label: 'Recipe', value: model.recipe),
-            _DetailRow(label: 'Quantization', value: model.quantization, copyable: true),
+            _DetailRow(
+              label: 'Quantization',
+              value: model.quantization,
+              copyable: true,
+            ),
             if (paramsBillions != null)
               _DetailRow(label: 'Parameters', value: '${paramsBillions}B'),
             if (model.size != null)
               _DetailRow(
                 label: 'File Size',
                 value: formatFileSize(model.size!),
+              ),
+            if (model.maxContextWindow != null)
+              _DetailRow(
+                label: 'Maximum Context',
+                value: model.maxContextWindow.toString(),
               ),
             _DetailRow(
               label: 'Downloaded',
@@ -493,6 +559,75 @@ class _ModelDetailsCard extends StatelessWidget {
               _DetailRow(label: 'Owner', value: model.ownedBy),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ModelFilesCard extends ConsumerStatefulWidget {
+  final String modelId;
+  const _ModelFilesCard({required this.modelId});
+  @override
+  ConsumerState<_ModelFilesCard> createState() => _ModelFilesCardState();
+}
+
+class _ModelFilesCardState extends ConsumerState<_ModelFilesCard> {
+  bool _expanded = false;
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final files = _expanded
+        ? ref.watch(modelFilesProvider(widget.modelId))
+        : null;
+    return Card(
+      child: ExpansionTile(
+        leading: const Icon(Icons.folder_outlined),
+        title: const Text('Files'),
+        onExpansionChanged: (value) => setState(() => _expanded = value),
+        children: [
+          if (files != null)
+            files.when(
+              loading: () => const Padding(
+                padding: EdgeInsets.all(20),
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              error: (error, _) => Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  error.toString(),
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
+              ),
+              data: (result) => Column(
+                children: [
+                  for (final file in result.files)
+                    ListTile(
+                      leading: Icon(
+                        file.exists
+                            ? Icons.insert_drive_file
+                            : Icons.error_outline,
+                        color: file.exists ? null : theme.colorScheme.error,
+                      ),
+                      title: Text(file.name),
+                      subtitle: Text(
+                        '${file.role} · ${formatFileSize(file.sizeBytes.toDouble())}',
+                      ),
+                      trailing: file.exists
+                          ? null
+                          : Text(
+                              'Missing',
+                              style: TextStyle(color: theme.colorScheme.error),
+                            ),
+                    ),
+                  if (result.files.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text('No file metadata returned.'),
+                    ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }

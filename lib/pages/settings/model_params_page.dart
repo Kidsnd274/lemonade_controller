@@ -60,8 +60,7 @@ class _ModelParamsPageState extends ConsumerState<ModelParamsPage> {
     );
     if (confirmed != true) return;
 
-    final defaults =
-        await SettingsNotifier.loadDefaultModelParamOverrides();
+    final defaults = await SettingsNotifier.loadDefaultModelParamOverrides();
     setState(() {
       _overrides = defaults;
       _dirty = true;
@@ -74,7 +73,9 @@ class _ModelParamsPageState extends ConsumerState<ModelParamsPage> {
     if (_overrides.containsKey(result.key)) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('"${result.key}" already exists. Edit it instead.')),
+        SnackBar(
+          content: Text('"${result.key}" already exists. Edit it instead.'),
+        ),
       );
       return;
     }
@@ -325,8 +326,9 @@ class _ModelParamsPageState extends ConsumerState<ModelParamsPage> {
                     hintText: 'e.g. 110.0',
                     border: OutlineInputBorder(),
                   ),
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   autofocus: isEditing,
                 ),
               ],

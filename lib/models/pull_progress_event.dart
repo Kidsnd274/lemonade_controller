@@ -25,7 +25,10 @@ class PullProgressEvent {
     this.speedBytesPerSec,
   });
 
-  factory PullProgressEvent.fromSse(String eventType, Map<String, dynamic> data) {
+  factory PullProgressEvent.fromSse(
+    String eventType,
+    Map<String, dynamic> data,
+  ) {
     final type = switch (eventType) {
       'complete' => PullEventType.complete,
       'error' => PullEventType.error,

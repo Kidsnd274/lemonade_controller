@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/models/lemonade_model.dart';
 import 'package:lemonade_controller/pages/model_page/model_page.dart';
 import 'package:lemonade_controller/providers/api_providers.dart';
+import 'package:lemonade_controller/providers/service_providers.dart';
 import 'package:lemonade_controller/utils/quantization_color.dart';
 
 class ModelCard extends ConsumerWidget {
@@ -68,6 +69,10 @@ class ModelCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isLoading = ref.watch(isModelLoadingProvider(model.id));
     final isLoaded = ref.watch(isModelLoadedProvider(model.id));
+    final health = ref.watch(healthInfoProvider).value;
+    final loaded = ref
+        .watch(loadedModelsProvider)
+        .where((item) => item.modelName == model.id);
     final theme = Theme.of(context);
 
     return Card(
@@ -112,6 +117,47 @@ class ModelCard extends ConsumerWidget {
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: quantizationForegroundColor(model.quantizationLevel),
                   ),
+                ),
+              ),
+            ],
+            if (loaded.isNotEmpty && loaded.first.pinned) ...[
+              const SizedBox(width: 4),
+              const Tooltip(
+                message: 'Pinned in memory',
+                child: Icon(Icons.push_pin, size: 16),
+              ),
+            ],
+            if (model.updateAvailable &&
+                (health?.updateCheckDone ?? false)) ...[
+              const SizedBox(width: 4),
+              Tooltip(
+                message: 'Update available',
+                child: IconButton(
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(
+                    minWidth: 28,
+                    minHeight: 28,
+                  ),
+                  padding: EdgeInsets.zero,
+                  onPressed: () async {
+                    try {
+                      await ref.read(apiClientProvider).resumePull(model.id);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Model update started.'),
+                          ),
+                        );
+                      }
+                    } catch (error) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(error.toString())),
+                        );
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.system_update_alt, size: 16),
                 ),
               ),
             ],

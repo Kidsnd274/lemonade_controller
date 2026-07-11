@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/providers/api_providers.dart';
+import 'package:lemonade_controller/providers/service_providers.dart';
 import 'package:lemonade_controller/services/settings_service.dart';
 
 final refreshAllProvider = Provider((ref) {
@@ -22,7 +23,8 @@ final autoRefreshProvider = Provider<void>((ref) {
   }
 
   final settings = ref.watch(settingsProvider).value;
-  if (settings == null || !settings.autoRefreshEnabled) {
+  final foreground = ref.watch(appForegroundProvider);
+  if (settings == null || !settings.autoRefreshEnabled || !foreground) {
     cancelTimer();
     return;
   }

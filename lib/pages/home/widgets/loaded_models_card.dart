@@ -176,9 +176,7 @@ class _LoadedModelTile extends ConsumerWidget {
       borderRadius: BorderRadius.circular(8),
       onTap: () => Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => ModelPage(model: _resolveModel(ref)),
-        ),
+        MaterialPageRoute(builder: (_) => ModelPage(model: _resolveModel(ref))),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -197,6 +195,14 @@ class _LoadedModelTile extends ConsumerWidget {
                 type: loadedModel.type,
               ),
             ),
+            if (loadedModel.pinned)
+              const Padding(
+                padding: EdgeInsets.only(right: 4),
+                child: Tooltip(
+                  message: 'Pinned in memory',
+                  child: Icon(Icons.push_pin, size: 18),
+                ),
+              ),
             const SizedBox(width: 8),
             _UnloadAction(
               isUnloading: isUnloading,

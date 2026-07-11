@@ -25,9 +25,7 @@ class LemonadeController extends ConsumerWidget {
       loading: () => MaterialApp(
         theme: lightTheme,
         darkTheme: darkTheme,
-        home: const Scaffold(
-          body: Center(child: CircularProgressIndicator()),
-        ),
+        home: const Scaffold(body: Center(child: CircularProgressIndicator())),
       ),
       error: (e, st) => MaterialApp(
         home: Scaffold(

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:lemonade_controller/pages/home/widgets/download_progress_card.dart';
 import 'package:lemonade_controller/pages/home/widgets/loaded_models_card.dart';
 import 'package:lemonade_controller/pages/home/widgets/loading_models_card.dart';
+import 'package:lemonade_controller/pages/home/widgets/performance_card.dart';
+import 'package:lemonade_controller/pages/home/widgets/request_stats_card.dart';
 import 'package:lemonade_controller/pages/home/widgets/recipes_card.dart';
 import 'package:lemonade_controller/pages/home/widgets/server_status_card.dart';
 import 'package:lemonade_controller/pages/home/widgets/system_specs_card.dart';
@@ -36,6 +38,10 @@ class _MobileLayout extends StatelessWidget {
         SizedBox(height: 8),
         SystemSpecsCard(),
         SizedBox(height: 8),
+        PerformanceCard(),
+        SizedBox(height: 8),
+        RequestStatsCard(),
+        SizedBox(height: 8),
         RecipesCard(),
         SizedBox(height: 16),
       ],
@@ -67,6 +73,10 @@ class _WideLayout extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox(height: 12),
+              const PerformanceCard(),
+              const SizedBox(height: 12),
+              const RequestStatsCard(),
               const SizedBox(height: 12),
               const RecipesCard(),
               const SizedBox(height: 16),

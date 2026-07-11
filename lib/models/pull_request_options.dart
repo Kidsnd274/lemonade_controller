@@ -25,6 +25,7 @@ class PullRequestOptions {
       'checkpoint': checkpoint,
       'recipe': recipe,
       'stream': true,
+      'subscribe': false,
     };
     if (reasoning) json['reasoning'] = true;
     if (vision) json['vision'] = true;

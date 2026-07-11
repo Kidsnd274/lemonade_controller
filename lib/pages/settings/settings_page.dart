@@ -4,7 +4,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lemonade_controller/models/server_profile.dart';
+import 'package:lemonade_controller/models/health_info.dart';
 import 'package:lemonade_controller/pages/settings/model_params_page.dart';
+import 'package:lemonade_controller/services/api_client.dart';
 import 'package:lemonade_controller/services/settings_service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -137,6 +139,19 @@ class _SettingsContent extends ConsumerWidget {
                 )
               : null,
         ),
+        ListTile(
+          leading: const Icon(Icons.monitor_heart_outlined),
+          title: const Text('Performance Sampling'),
+          subtitle: Text(
+            '${settings.performanceSampleIntervalSeconds} seconds',
+          ),
+          onTap: () => _editAutoRefreshInterval(
+            context,
+            ref,
+            settings.performanceSampleIntervalSeconds,
+            performance: true,
+          ),
+        ),
         const Divider(),
         _SectionHeader(title: 'VRAM Estimation'),
         ListTile(
@@ -146,9 +161,9 @@ class _SettingsContent extends ConsumerWidget {
             '${settings.modelParamOverrides.length} override${settings.modelParamOverrides.length == 1 ? '' : 's'}',
           ),
           trailing: const Icon(Icons.chevron_right),
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const ModelParamsPage()),
-          ),
+          onTap: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const ModelParamsPage())),
         ),
         const Divider(),
         _SectionHeader(title: 'Data'),
@@ -205,9 +220,9 @@ class _SettingsContent extends ConsumerWidget {
       );
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Export failed: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Export failed: $e')));
     }
   }
 
@@ -249,9 +264,9 @@ class _SettingsContent extends ConsumerWidget {
       );
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Import failed: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Import failed: $e')));
     }
   }
 
@@ -415,6 +430,9 @@ class _SettingsContent extends ConsumerWidget {
         id: ServerProfile.generateId(),
         name: result.name,
         baseUrl: result.url,
+        bearerToken: result.bearerToken,
+        customHeaders: result.customHeaders,
+        webSocketUrlOverride: result.webSocketUrlOverride,
       );
       await ref.read(settingsProvider.notifier).addProfile(profile);
     }
@@ -429,13 +447,24 @@ class _SettingsContent extends ConsumerWidget {
       context,
       initialName: profile.name,
       initialUrl: profile.baseUrl,
+      initialBearerToken: profile.bearerToken,
+      initialHeaders: profile.customHeaders,
+      initialWebSocketUrl: profile.webSocketUrlOverride,
       title: 'Edit Server',
     );
     if (result != null) {
       await ref
           .read(settingsProvider.notifier)
           .updateProfile(
-            profile.copyWith(name: result.name, baseUrl: result.url),
+            profile.copyWith(
+              name: result.name,
+              baseUrl: result.url,
+              bearerToken: result.bearerToken,
+              clearBearerToken: result.bearerToken == null,
+              customHeaders: result.customHeaders,
+              webSocketUrlOverride: result.webSocketUrlOverride,
+              clearWebSocketUrlOverride: result.webSocketUrlOverride == null,
+            ),
           );
     }
   }
@@ -475,62 +504,215 @@ class _SettingsContent extends ConsumerWidget {
     BuildContext context, {
     String? initialName,
     String? initialUrl,
+    String? initialBearerToken,
+    Map<String, String> initialHeaders = const {},
+    String? initialWebSocketUrl,
     String title = 'Add Server',
   }) async {
     final nameController = TextEditingController(text: initialName ?? '');
     final urlController = TextEditingController(
       text: initialUrl ?? 'http://localhost:8020/api/v1',
     );
+    final tokenController = TextEditingController(
+      text: initialBearerToken ?? '',
+    );
+    final headersController = TextEditingController(
+      text: initialHeaders.entries
+          .map((e) => '${e.key}: ${e.value}')
+          .join('\n'),
+    );
+    final webSocketController = TextEditingController(
+      text: initialWebSocketUrl ?? '',
+    );
+    String? validationError;
+
+    Map<String, String>? parseHeaders() {
+      final result = <String, String>{};
+      final seen = <String>{};
+      for (final raw in headersController.text.split('\n')) {
+        final line = raw.trim();
+        if (line.isEmpty) continue;
+        final colon = line.indexOf(':');
+        if (colon <= 0) {
+          validationError = 'Each custom header must use Name: value format.';
+          return null;
+        }
+        final name = line.substring(0, colon).trim();
+        final value = line.substring(colon + 1).trim();
+        if (name.isEmpty || value.isEmpty || !seen.add(name.toLowerCase())) {
+          validationError =
+              'Header names and values must be non-empty and unique.';
+          return null;
+        }
+        if (tokenController.text.trim().isNotEmpty &&
+            name.toLowerCase() == 'authorization') {
+          validationError =
+              'Remove the Authorization header when using a bearer token.';
+          return null;
+        }
+        result[name] = value;
+      }
+      validationError = null;
+      return result;
+    }
+
     void submitProfile(BuildContext dialogContext) {
       if (nameController.text.trim().isEmpty) return;
+      final headers = parseHeaders();
+      if (headers == null) return;
       Navigator.pop(
         dialogContext,
         _ProfileDialogResult(
           name: nameController.text.trim(),
           url: urlController.text.trim(),
+          bearerToken: tokenController.text.trim().isEmpty
+              ? null
+              : tokenController.text.trim(),
+          customHeaders: headers,
+          webSocketUrlOverride: webSocketController.text.trim().isEmpty
+              ? null
+              : webSocketController.text.trim(),
         ),
       );
     }
 
     return showDialog<_ProfileDialogResult>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(
-                labelText: 'Name',
-                hintText: 'e.g. Production Server',
-                border: OutlineInputBorder(),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(title),
+          content: SizedBox(
+            width: 520,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Name',
+                      hintText: 'e.g. Production Server',
+                      border: OutlineInputBorder(),
+                    ),
+                    autofocus: true,
+                    onSubmitted: (_) => submitProfile(context),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: urlController,
+                    decoration: const InputDecoration(
+                      labelText: 'API Base URL',
+                      hintText: 'http://host:port/api/v1',
+                      border: OutlineInputBorder(),
+                    ),
+                    onSubmitted: (_) => submitProfile(context),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: tokenController,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Bearer Token (optional)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: headersController,
+                    minLines: 2,
+                    maxLines: 5,
+                    decoration: const InputDecoration(
+                      labelText: 'Custom Headers',
+                      helperText: 'One per line: Header-Name: value',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: webSocketController,
+                    decoration: const InputDecoration(
+                      labelText: 'WebSocket URL Override (optional)',
+                      hintText: 'wss://host/logs/stream',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Credentials are stored locally and included in settings exports as plaintext.',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  if (validationError != null)
+                    Text(
+                      validationError!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                ],
               ),
-              autofocus: true,
-              onSubmitted: (_) => submitProfile(context),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: urlController,
-              decoration: const InputDecoration(
-                labelText: 'API Base URL',
-                hintText: 'http://host:port/api/v1',
-                border: OutlineInputBorder(),
-              ),
-              onSubmitted: (_) => submitProfile(context),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                final headers = parseHeaders();
+                if (headers == null) {
+                  setDialogState(() {});
+                  return;
+                }
+                final profile = ServerProfile(
+                  id: 'connection-test',
+                  name: nameController.text.trim().isEmpty
+                      ? 'Test'
+                      : nameController.text.trim(),
+                  baseUrl: urlController.text.trim(),
+                  bearerToken: tokenController.text.trim().isEmpty
+                      ? null
+                      : tokenController.text.trim(),
+                  customHeaders: headers,
+                  webSocketUrlOverride: webSocketController.text.trim().isEmpty
+                      ? null
+                      : webSocketController.text.trim(),
+                );
+                try {
+                  final health = await LemonadeApiClient.forProfile(
+                    profile,
+                  ).getHealth();
+                  if (!context.mounted) return;
+                  final version = health['version']?.toString() ?? 'unknown';
+                  final compatibilityWarning =
+                      HealthInfo.fromJson(health).isOlderThanRecommended
+                      ? ' Some newer features may not work.'
+                      : '';
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Connected to Lemonade Server $version.$compatibilityWarning',
+                      ),
+                    ),
+                  );
+                } catch (error) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(error.toString())));
+                }
+              },
+              child: const Text('Test Connection'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                submitProfile(context);
+                setDialogState(() {});
+              },
+              child: const Text('Save'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => submitProfile(context),
-            child: const Text('Save'),
-          ),
-        ],
       ),
     );
   }
@@ -538,13 +720,14 @@ class _SettingsContent extends ConsumerWidget {
   Future<void> _editAutoRefreshInterval(
     BuildContext context,
     WidgetRef ref,
-    int currentInterval,
-  ) async {
+    int currentInterval, {
+    bool performance = false,
+  }) async {
     final controller = TextEditingController(text: currentInterval.toString());
     final newInterval = await showDialog<int>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Refresh Interval'),
+        title: Text(performance ? 'Performance Sampling' : 'Refresh Interval'),
         content: TextField(
           controller: controller,
           decoration: const InputDecoration(
@@ -573,9 +756,17 @@ class _SettingsContent extends ConsumerWidget {
       ),
     );
     if (newInterval != null) {
+      final minimum = performance
+          ? AppSettings.minPerformanceSampleIntervalSeconds
+          : AppSettings.minAutoRefreshIntervalSeconds;
+      final sanitized = newInterval < minimum ? minimum : newInterval;
       ref
           .read(settingsProvider.notifier)
-          .modify((s) => s.copyWith(autoRefreshIntervalSeconds: newInterval));
+          .modify(
+            (s) => performance
+                ? s.copyWith(performanceSampleIntervalSeconds: sanitized)
+                : s.copyWith(autoRefreshIntervalSeconds: sanitized),
+          );
     }
   }
 }
@@ -632,7 +823,11 @@ class _ServerProfileTile extends StatelessWidget {
           fontWeight: isActive ? FontWeight.w600 : null,
         ),
       ),
-      subtitle: Text(profile.displayAddress),
+      subtitle: Text(
+        '${profile.displayAddress}'
+        '${profile.bearerToken?.isNotEmpty == true ? ' · token ••••••' : ''}'
+        '${profile.customHeaders.isNotEmpty ? ' · ${profile.customHeaders.length} custom header${profile.customHeaders.length == 1 ? '' : 's'}' : ''}',
+      ),
       onTap: isActive ? null : onSetActive,
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -661,7 +856,16 @@ class _ServerProfileTile extends StatelessWidget {
 class _ProfileDialogResult {
   final String name;
   final String url;
-  const _ProfileDialogResult({required this.name, required this.url});
+  final String? bearerToken;
+  final Map<String, String> customHeaders;
+  final String? webSocketUrlOverride;
+  const _ProfileDialogResult({
+    required this.name,
+    required this.url,
+    this.bearerToken,
+    this.customHeaders = const {},
+    this.webSocketUrlOverride,
+  });
 }
 
 class _AboutInfoRow extends StatelessWidget {

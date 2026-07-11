@@ -37,6 +37,9 @@ class _PullPageState extends ConsumerState<PullPage> {
   bool _loadingVariants = false;
   Timer? _variantsDebounce;
   int _variantsRequestId = 0;
+  String? _variantsError;
+  final _otherVariantController = TextEditingController();
+  bool _submitting = false;
 
   bool _userEditedRecipe = false;
   final Set<String> _userTouchedLabels = {};
@@ -55,6 +58,7 @@ class _PullPageState extends ConsumerState<PullPage> {
     _checkpointController.dispose();
     _recipeController.dispose();
     _mmprojController.dispose();
+    _otherVariantController.dispose();
     super.dispose();
   }
 
@@ -100,7 +104,9 @@ class _PullPageState extends ConsumerState<PullPage> {
     _variantsDebounce?.cancel();
 
     if (text.contains(':')) {
-      if (_variants != null || _selectedVariantName != null || _loadingVariants) {
+      if (_variants != null ||
+          _selectedVariantName != null ||
+          _loadingVariants) {
         setState(() {
           _variants = null;
           _selectedVariantName = null;
@@ -135,7 +141,13 @@ class _PullPageState extends ConsumerState<PullPage> {
     setState(() => _loadingVariants = true);
 
     final apiClient = ref.read(apiClientProvider);
-    final result = await apiClient.getPullVariants(orgRepo);
+    PullVariants? result;
+    String? error;
+    try {
+      result = await apiClient.getPullVariants(orgRepo);
+    } catch (exception) {
+      error = exception.toString();
+    }
 
     if (!mounted || requestId != _variantsRequestId) return;
 
@@ -149,6 +161,7 @@ class _PullPageState extends ConsumerState<PullPage> {
       _loadingVariants = false;
       _variants = result;
       _selectedVariantName = null;
+      _variantsError = error;
     });
 
     if (result != null && result.variants.isNotEmpty) {
@@ -208,10 +221,13 @@ class _PullPageState extends ConsumerState<PullPage> {
     _checkpointController.addListener(_onCheckpointChanged);
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final modelName = _modelNameController.text.trim();
+    final enteredName = _modelNameController.text.trim();
+    final modelName = enteredName.startsWith('user.')
+        ? enteredName
+        : 'user.$enteredName';
 
     final options = PullRequestOptions(
       modelName: modelName,
@@ -224,17 +240,26 @@ class _PullPageState extends ConsumerState<PullPage> {
       mmproj: _vision ? _mmprojController.text.trim() : null,
     );
 
-    ref.read(pullProgressProvider.notifier).startPull(options);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Started pulling "$modelName"')),
-    );
+    setState(() => _submitting = true);
+    try {
+      await ref.read(downloadsProvider.notifier).startPull(options);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Started downloading "$modelName"')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final pullProgress = ref.watch(pullProgressProvider);
     final systemInfoAsync = ref.watch(systemInfoProvider);
 
     final availableRecipes = systemInfoAsync.whenOrNull(
@@ -246,16 +271,7 @@ class _PullPageState extends ConsumerState<PullPage> {
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 700),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildForm(theme, availableRecipes),
-              if (pullProgress.isNotEmpty) ...[
-                const SizedBox(height: 24),
-                _ActiveDownloads(progress: pullProgress),
-              ],
-            ],
-          ),
+          child: _buildForm(theme, availableRecipes),
         ),
       ),
     );
@@ -306,6 +322,9 @@ class _PullPageState extends ConsumerState<PullPage> {
                 decoration: InputDecoration(
                   labelText: 'Model Name',
                   hintText: 'e.g. Phi-4-Mini-GGUF',
+                  helperText: _modelNameController.text.trim().isEmpty
+                      ? 'Custom models are registered under the user. namespace.'
+                      : 'Will register as ${_modelNameController.text.trim().startsWith('user.') ? _modelNameController.text.trim() : 'user.${_modelNameController.text.trim()}'}',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -316,6 +335,7 @@ class _PullPageState extends ConsumerState<PullPage> {
                   }
                   return null;
                 },
+                onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -353,9 +373,16 @@ class _PullPageState extends ConsumerState<PullPage> {
                 const SizedBox(height: 12),
                 _buildVariantsSection(theme),
               ],
+              if (_variantsError != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _variantsError!,
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
+              ],
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: recipes.contains(_selectedRecipe)
+                initialValue: recipes.contains(_selectedRecipe)
                     ? _selectedRecipe
                     : null,
                 decoration: InputDecoration(
@@ -444,8 +471,14 @@ class _PullPageState extends ConsumerState<PullPage> {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: _submit,
-                  icon: const Icon(Icons.download),
+                  onPressed: _submitting ? null : _submit,
+                  icon: _submitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.download),
                   label: const Text('Pull Model'),
                 ),
               ),
@@ -498,11 +531,7 @@ class _PullPageState extends ConsumerState<PullPage> {
       children: [
         Row(
           children: [
-            Icon(
-              Icons.tune,
-              size: 14,
-              color: theme.colorScheme.primary,
-            ),
+            Icon(Icons.tune, size: 14, color: theme.colorScheme.primary),
             const SizedBox(width: 6),
             Text(
               'Variants',
@@ -532,6 +561,26 @@ class _PullPageState extends ConsumerState<PullPage> {
             ],
           ),
         ],
+        const SizedBox(height: 14),
+        TextField(
+          controller: _otherVariantController,
+          decoration: InputDecoration(
+            labelText: 'Other quantization',
+            hintText: 'e.g. IQ3_M',
+            border: const OutlineInputBorder(),
+            suffixIcon: IconButton(
+              tooltip: 'Use quantization',
+              onPressed: () {
+                final value = _otherVariantController.text.trim();
+                if (value.isNotEmpty) _selectVariant(value);
+              },
+              icon: const Icon(Icons.check),
+            ),
+          ),
+          onSubmitted: (value) {
+            if (value.trim().isNotEmpty) _selectVariant(value.trim());
+          },
+        ),
       ],
     );
   }
@@ -550,8 +599,9 @@ class _PullPageState extends ConsumerState<PullPage> {
 
   Widget _buildVariantTile(PullVariant variant, ThemeData theme) {
     final selected = _selectedVariantName == variant.name;
-    final accent =
-        selected ? theme.colorScheme.primary : theme.colorScheme.outlineVariant;
+    final accent = selected
+        ? theme.colorScheme.primary
+        : theme.colorScheme.outlineVariant;
     final bg = selected
         ? theme.colorScheme.primaryContainer.withValues(alpha: 0.55)
         : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4);
@@ -623,6 +673,7 @@ class _PullPageState extends ConsumerState<PullPage> {
   }
 }
 
+// ignore: unused_element
 class _ActiveDownloads extends StatelessWidget {
   final Map<String, PullProgressEvent> progress;
 
@@ -645,7 +696,11 @@ class _ActiveDownloads extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(Icons.downloading, size: 20, color: theme.colorScheme.primary),
+                Icon(
+                  Icons.downloading,
+                  size: 20,
+                  color: theme.colorScheme.primary,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   'Active Downloads',
@@ -712,15 +767,11 @@ class _DownloadRow extends ConsumerWidget {
                 tooltip: 'Cancel download',
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(
-                  minWidth: 28,
-                  minHeight: 28,
-                ),
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                 color: theme.colorScheme.onSurfaceVariant,
                 onPressed: () {
-                  ref
-                      .read(pullProgressProvider.notifier)
-                      .cancelPull(modelName);
+                  // Legacy SSE row retained only for source compatibility;
+                  // server-owned downloads are controlled on DownloadsPage.
                 },
               ),
             ],
@@ -764,7 +815,8 @@ class _DownloadRow extends ConsumerWidget {
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-              if (event.bytesDownloaded != null && event.bytesTotal != null) ...[
+              if (event.bytesDownloaded != null &&
+                  event.bytesTotal != null) ...[
                 const SizedBox(width: 8),
                 Text(
                   '${formatFileSize(event.bytesDownloaded!.toDouble())} / ${formatFileSize(event.bytesTotal!.toDouble())}',
