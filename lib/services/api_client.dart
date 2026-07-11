@@ -51,7 +51,7 @@ class LemonadeApiClient {
 
   Future<List<dynamic>> getModelsList() async {
     final response = await _request(
-      () => _dio.get('$baseUrl/models', queryParameters: {'show_all': true}),
+      () => _dio.get('$baseUrl/models'),
       'load models',
     );
     final data = (response.data as Map?)?['data'] as List? ?? const [];

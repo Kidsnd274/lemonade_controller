@@ -39,7 +39,9 @@ Future<bool?> _showUnloadConfirmation(
 // ---------------------------------------------------------------------------
 
 class LoadedModelsCard extends ConsumerWidget {
-  const LoadedModelsCard({super.key});
+  final bool expand;
+
+  const LoadedModelsCard({super.key, this.expand = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -49,12 +51,16 @@ class LoadedModelsCard extends ConsumerWidget {
       title: 'Loaded Models',
       icon: Icons.model_training,
       contentPadding: const EdgeInsets.all(8),
+      expandContent: expand,
       child: healthAsync.when(
         data: (health) {
           if (health.allModelsLoaded.isEmpty) {
             return const _EmptyState();
           }
-          return _LoadedModelsList(models: health.allModelsLoaded);
+          return _LoadedModelsList(
+            models: health.allModelsLoaded,
+            scrollable: expand,
+          );
         },
         error: (err, _) => _ErrorRow(error: err.toString()),
         loading: () => const _LoadingIndicator(),
@@ -102,11 +108,20 @@ class _EmptyState extends StatelessWidget {
 
 class _LoadedModelsList extends StatelessWidget {
   final List<LoadedModel> models;
+  final bool scrollable;
 
-  const _LoadedModelsList({required this.models});
+  const _LoadedModelsList({required this.models, required this.scrollable});
 
   @override
   Widget build(BuildContext context) {
+    if (scrollable) {
+      return ListView.separated(
+        padding: EdgeInsets.zero,
+        itemCount: models.length,
+        separatorBuilder: (_, _) => const Divider(height: 16),
+        itemBuilder: (_, index) => _LoadedModelTile(loadedModel: models[index]),
+      );
+    }
     return Column(
       children: [
         for (int i = 0; i < models.length; i++) ...[

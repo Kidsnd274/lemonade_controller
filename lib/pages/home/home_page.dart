@@ -36,11 +36,11 @@ class _MobileLayout extends StatelessWidget {
         DownloadProgressCard(),
         LoadedModelsCard(),
         SizedBox(height: 8),
-        SystemSpecsCard(),
-        SizedBox(height: 8),
         PerformanceCard(),
         SizedBox(height: 8),
         RequestStatsCard(),
+        SizedBox(height: 8),
+        SystemSpecsCard(),
         SizedBox(height: 8),
         RecipesCard(),
         SizedBox(height: 16),
@@ -63,20 +63,27 @@ class _WideLayout extends StatelessWidget {
               const SizedBox(height: 12),
               const LoadingModelsCard(),
               const DownloadProgressCard(),
-              IntrinsicHeight(
+              SizedBox(
+                height: 464,
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: const [
-                    Expanded(child: LoadedModelsCard()),
+                    Expanded(child: LoadedModelsCard(expand: true)),
                     SizedBox(width: 12),
-                    Expanded(child: SystemSpecsCard()),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          Expanded(child: PerformanceCard(expand: true)),
+                          SizedBox(height: 12),
+                          Expanded(child: RequestStatsCard(expand: true)),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
               const SizedBox(height: 12),
-              const PerformanceCard(),
-              const SizedBox(height: 12),
-              const RequestStatsCard(),
+              const SystemSpecsCard(),
               const SizedBox(height: 12),
               const RecipesCard(),
               const SizedBox(height: 16),

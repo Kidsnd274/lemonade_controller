@@ -424,7 +424,10 @@ class PerformanceNotifier extends StateNotifier<PerformanceState> {
         final stats = await _api.getSystemStats();
         final now = DateTime.now();
         samples = [...samples, SystemStatsSample(timestamp: now, stats: stats)]
-            .where((sample) => now.difference(sample.timestamp).inMinutes < 5)
+            .where(
+              (sample) =>
+                  now.difference(sample.timestamp) < performanceHistoryDuration,
+            )
             .toList();
         systemError = null;
       } on LemonadeApiException catch (error) {

@@ -1,3 +1,6 @@
+/// The amount of telemetry retained and rendered by performance charts.
+const performanceHistoryDuration = Duration(minutes: 5);
+
 class SystemStats {
   final double? cpuPercent;
   final double? memoryGb;
@@ -34,4 +37,14 @@ class SystemStatsSample {
   final SystemStats stats;
 
   const SystemStatsSample({required this.timestamp, required this.stats});
+}
+
+/// Maps a sample timestamp into the fixed performance-history chart domain.
+///
+/// The returned value is measured in seconds from the beginning of the
+/// configured history window. A value at the current time therefore lands at
+/// [performanceHistoryDuration.inSeconds].
+double performanceHistoryX(DateTime timestamp, DateTime windowEnd) {
+  final windowStart = windowEnd.subtract(performanceHistoryDuration);
+  return timestamp.difference(windowStart).inMilliseconds / 1000;
 }

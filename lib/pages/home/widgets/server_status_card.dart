@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lemonade_controller/models/lemonade_model.dart';
 import 'package:lemonade_controller/pages/home/widgets/dashboard_card.dart';
 import 'package:lemonade_controller/providers/api_providers.dart';
 import 'package:lemonade_controller/providers/service_providers.dart';
@@ -20,6 +19,11 @@ class ServerStatusCard extends ConsumerWidget {
       child: healthAsync.when(
         data: (health) {
           final loadedByType = health.loadedCountByType;
+          final loadedCount = health.allModelsLoaded.length;
+          final pinnedCount = health.pinnedModels.values.fold<int>(
+            0,
+            (total, count) => total + count,
+          );
           final settings = ref.watch(settingsProvider).value;
           final profile = ref.watch(activeServerProfileProvider);
           final warningKey = '${profile.id}@${health.version}';
@@ -101,23 +105,30 @@ class ServerStatusCard extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: 12),
-              if (health.activeModel != null) ...[
-                _InfoRow(
-                  label: 'Active Model',
-                  value: LemonadeModel.stripIdPrefix(health.activeModel!),
-                ),
-                const SizedBox(height: 4),
-              ],
-              _InfoRow(
-                label: 'WebSocket Port',
-                value: health.websocketPort.toString(),
+              _ServerSummary(
+                name: profile.name,
+                address: profile.displayAddress,
+                websocketPort: health.websocketPort,
+                loadedCount: loadedCount,
+                pinnedCount: pinnedCount,
               ),
               const SizedBox(height: 12),
-              Text(
-                'Model Slots',
-                style: theme.textTheme.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+              Row(
+                children: [
+                  Text(
+                    'Model Slots',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '$loadedCount loaded',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 6),
               Wrap(
@@ -145,30 +156,149 @@ class ServerStatusCard extends ConsumerWidget {
   }
 }
 
-class _InfoRow extends StatelessWidget {
-  final String label;
-  final String value;
+class _ServerSummary extends StatelessWidget {
+  final String name;
+  final String address;
+  final int websocketPort;
+  final int loadedCount;
+  final int pinnedCount;
 
-  const _InfoRow({required this.label, required this.value});
+  const _ServerSummary({
+    required this.name,
+    required this.address,
+    required this.websocketPort,
+    required this.loadedCount,
+    required this.pinnedCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final identity = _ServerIdentity(name: name, address: address);
+          final facts = <Widget>[
+            _SummaryFact(
+              icon: Icons.memory_outlined,
+              label: '$loadedCount loaded',
+            ),
+            if (pinnedCount > 0)
+              _SummaryFact(
+                icon: Icons.push_pin_outlined,
+                label: '$pinnedCount pinned',
+              ),
+            _SummaryFact(
+              icon: Icons.cable_outlined,
+              label: 'WS $websocketPort',
+            ),
+          ];
+          if (constraints.maxWidth < 560) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                identity,
+                const SizedBox(height: 9),
+                Wrap(spacing: 14, runSpacing: 6, children: facts),
+              ],
+            );
+          }
+          return Row(
+            children: [
+              Expanded(child: identity),
+              const SizedBox(width: 14),
+              ...facts.expand(
+                (fact) => [
+                  fact,
+                  if (fact != facts.last) const SizedBox(width: 14),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ServerIdentity extends StatelessWidget {
+  final String name;
+  final String address;
+
+  const _ServerIdentity({required this.name, required this.address});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Row(
       children: [
-        Text(
-          '$label: ',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+        Container(
+          width: 34,
+          height: 34,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primaryContainer,
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Icon(
+            Icons.hub_outlined,
+            size: 19,
+            color: theme.colorScheme.primary,
           ),
         ),
-        Flexible(
-          child: Text(
-            value,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w500,
-            ),
-            overflow: TextOverflow.ellipsis,
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                name,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                address,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SummaryFact extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _SummaryFact({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 15, color: theme.colorScheme.onSurfaceVariant),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: theme.textTheme.labelMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
       ],

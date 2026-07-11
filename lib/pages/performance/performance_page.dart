@@ -1,8 +1,14 @@
+import 'dart:math' as math;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lemonade_controller/models/system_info.dart';
 import 'package:lemonade_controller/models/system_stats.dart';
+import 'package:lemonade_controller/pages/performance/widgets/performance_meter.dart';
 import 'package:lemonade_controller/providers/api_providers.dart';
+
+enum _MetricKind { cpu, memory, gpu, npu }
 
 class PerformancePage extends ConsumerWidget {
   const PerformancePage({super.key});
@@ -10,32 +16,32 @@ class PerformancePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(performanceProvider);
-    final samples = state.samples;
-    final tabs = <_MetricTab>[
-      const _MetricTab('Overview', Icons.dashboard_outlined, null),
-      if (samples.any((s) => s.stats.cpuPercent != null))
-        _MetricTab('CPU', Icons.memory, (s) => s.cpuPercent),
-      if (samples.any((s) => s.stats.memoryGb != null))
-        _MetricTab('Memory', Icons.storage_outlined, (s) => s.memoryGb),
-      if (samples.any(
-        (s) => s.stats.gpuPercent != null || s.stats.vramGb != null,
-      ))
-        const _MetricTab('GPU / VRAM', Icons.developer_board_outlined, null),
-      if (samples.any((s) => s.stats.npuPercent != null))
-        _MetricTab('NPU', Icons.auto_awesome_outlined, (s) => s.npuPercent),
+    final infoAsync = ref.watch(systemInfoProvider);
+    final info = infoAsync.value;
+    final hasGpu =
+        info?.hasGpu ??
+        state.samples.any(
+          (sample) =>
+              sample.stats.gpuPercent != null || sample.stats.vramGb != null,
+        );
+    final hasNpu =
+        info?.hasNpu ??
+        state.samples.any((sample) => sample.stats.npuPercent != null);
+    final metrics = <_MetricKind>[
+      _MetricKind.cpu,
+      _MetricKind.memory,
+      if (hasGpu) _MetricKind.gpu,
+      if (hasNpu) _MetricKind.npu,
     ];
 
     return DefaultTabController(
-      length: tabs.length,
+      length: metrics.length,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Performance'),
           bottom: TabBar(
             isScrollable: true,
-            tabs: [
-              for (final tab in tabs)
-                Tab(icon: Icon(tab.icon), text: tab.title),
-            ],
+            tabs: [for (final metric in metrics) _tab(metric)],
           ),
           actions: [
             IconButton(
@@ -47,30 +53,33 @@ class PerformancePage extends ConsumerWidget {
         ),
         body: state.systemUnsupported
             ? const _Unsupported()
-            : state.loading && samples.isEmpty
+            : state.loading && state.samples.isEmpty
             ? const Center(child: CircularProgressIndicator())
             : Column(
                 children: [
-                  if (state.systemError != null && samples.isNotEmpty)
+                  if (state.systemError != null && state.samples.isNotEmpty)
                     MaterialBanner(
-                      content: Text('Showing last data: ${state.systemError}'),
+                      content: Text(
+                        'Showing the last available data: ${state.systemError}',
+                      ),
+                      actions: const [SizedBox.shrink()],
+                    ),
+                  if (infoAsync.hasError)
+                    MaterialBanner(
+                      content: const Text(
+                        'Hardware details are unavailable. Device tabs are based on available telemetry.',
+                      ),
                       actions: const [SizedBox.shrink()],
                     ),
                   Expanded(
                     child: TabBarView(
                       children: [
-                        for (final tab in tabs)
-                          if (tab.title == 'Overview')
-                            _Overview(samples: samples)
-                          else if (tab.title == 'GPU / VRAM')
-                            _GpuView(samples: samples)
-                          else
-                            _MetricView(
-                              title: tab.title,
-                              samples: samples,
-                              value: tab.value!,
-                              unit: tab.title == 'Memory' ? 'GiB' : '%',
-                            ),
+                        for (final metric in metrics)
+                          _MetricView(
+                            metric: metric,
+                            samples: state.samples,
+                            info: info,
+                          ),
                       ],
                     ),
                   ),
@@ -79,17 +88,27 @@ class PerformancePage extends ConsumerWidget {
       ),
     );
   }
-}
 
-class _MetricTab {
-  final String title;
-  final IconData icon;
-  final double? Function(SystemStats)? value;
-  const _MetricTab(this.title, this.icon, this.value);
+  Tab _tab(_MetricKind metric) => switch (metric) {
+    _MetricKind.cpu => const Tab(icon: Icon(Icons.memory), text: 'CPU'),
+    _MetricKind.memory => const Tab(
+      icon: Icon(Icons.storage_outlined),
+      text: 'Memory',
+    ),
+    _MetricKind.gpu => const Tab(
+      icon: Icon(Icons.developer_board_outlined),
+      text: 'GPU',
+    ),
+    _MetricKind.npu => const Tab(
+      icon: Icon(Icons.auto_awesome_outlined),
+      text: 'NPU',
+    ),
+  };
 }
 
 class _Unsupported extends StatelessWidget {
   const _Unsupported();
+
   @override
   Widget build(BuildContext context) => const Center(
     child: Padding(
@@ -99,182 +118,411 @@ class _Unsupported extends StatelessWidget {
   );
 }
 
-class _Overview extends StatelessWidget {
+class _MetricView extends StatelessWidget {
+  final _MetricKind metric;
   final List<SystemStatsSample> samples;
-  const _Overview({required this.samples});
+  final SystemInfo? info;
+
+  const _MetricView({
+    required this.metric,
+    required this.samples,
+    required this.info,
+  });
 
   @override
   Widget build(BuildContext context) {
     final latest = samples.isEmpty ? null : samples.last.stats;
-    final values = <(String, IconData, double?, String)>[
-      ('CPU', Icons.memory, latest?.cpuPercent, '%'),
-      ('Memory', Icons.storage_outlined, latest?.memoryGb, 'GiB'),
-      ('GPU', Icons.developer_board_outlined, latest?.gpuPercent, '%'),
-      ('VRAM', Icons.video_settings_outlined, latest?.vramGb, 'GiB'),
-      ('NPU', Icons.auto_awesome_outlined, latest?.npuPercent, '%'),
-    ].where((entry) => entry.$3 != null).toList();
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 360,
-        mainAxisExtent: 240,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-      ),
-      itemCount: values.length,
-      itemBuilder: (context, index) {
-        final metric = values[index];
-        double? Function(SystemStats) getter = switch (metric.$1) {
-          'CPU' => (s) => s.cpuPercent,
-          'Memory' => (s) => s.memoryGb,
-          'GPU' => (s) => s.gpuPercent,
-          'VRAM' => (s) => s.vramGb,
-          _ => (s) => s.npuPercent,
-        };
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    final rawValue = _rawValue(latest);
+    final hardwarePresent = switch (metric) {
+      _MetricKind.gpu => info?.hasGpu ?? rawValue != null,
+      _MetricKind.npu => info?.hasNpu ?? rawValue != null,
+      _ => true,
+    };
+    final telemetryUnavailable =
+        (metric == _MetricKind.gpu || metric == _MetricKind.npu) &&
+        hardwarePresent &&
+        rawValue == null;
+    final displayValue = telemetryUnavailable ? 0.0 : rawValue;
+    final memoryCapacity = info?.physicalMemoryGb;
+    final percent = metric == _MetricKind.memory
+        ? displayValue != null && memoryCapacity != null
+              ? displayValue / memoryCapacity * 100
+              : null
+        : displayValue;
+    final maxY = metric == _MetricKind.memory
+        ? memoryCapacity ?? _fallbackMemoryMax(samples)
+        : 100.0;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final horizontalPadding = constraints.maxWidth < 600 ? 16.0 : 28.0;
+        return ListView(
+          padding: EdgeInsets.fromLTRB(
+            horizontalPadding,
+            24,
+            horizontalPadding,
+            32,
+          ),
+          children: [
+            Wrap(
+              spacing: 28,
+              runSpacing: 20,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Row(
-                  children: [
-                    Icon(metric.$2, size: 18),
-                    const SizedBox(width: 8),
-                    Text(
-                      metric.$1,
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                    const Spacer(),
-                    Text('${metric.$3!.toStringAsFixed(1)} ${metric.$4}'),
-                  ],
+                PerformanceMeter(
+                  label: _title,
+                  percent: percent,
+                  valueLabel: _valueLabel(displayValue, memoryCapacity),
+                  icon: _icon,
+                  telemetryUnavailable: telemetryUnavailable,
+                  size: constraints.maxWidth < 600 ? 112 : 136,
                 ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: _Chart(samples: samples, value: getter),
+                SizedBox(
+                  width: math.max(240, constraints.maxWidth - 260),
+                  child: _MetricDetails(
+                    title: _title,
+                    detail: _hardwareDetail(info),
+                    value: _valueLabel(displayValue, memoryCapacity),
+                    memoryCapacityUnavailable:
+                        metric == _MetricKind.memory && memoryCapacity == null,
+                  ),
                 ),
               ],
             ),
-          ),
+            const SizedBox(height: 28),
+            SizedBox(
+              height: constraints.maxHeight < 620 ? 300 : 410,
+              child: _HistoryChart(
+                samples: samples,
+                value: (stats) {
+                  final value = _rawValue(stats);
+                  return telemetryUnavailable && value == null ? 0 : value;
+                },
+                maxY: maxY,
+                unit: metric == _MetricKind.memory ? 'GiB' : '%',
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Text(_historyLabel),
+                const Spacer(),
+                const Text('Now'),
+              ],
+            ),
+            if (metric == _MetricKind.memory) ...[
+              const SizedBox(height: 10),
+              Text(
+                'Capacity is reported by the server. Unified-memory RAM/VRAM partitioning is not currently exposed.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+            if (metric == _MetricKind.gpu) ...[
+              const SizedBox(height: 24),
+              _VramPanel(samples: samples, info: info),
+            ],
+          ],
         );
       },
     );
   }
+
+  String get _title => switch (metric) {
+    _MetricKind.cpu => 'CPU utilization',
+    _MetricKind.memory => 'Memory usage',
+    _MetricKind.gpu => 'GPU utilization',
+    _MetricKind.npu => 'NPU utilization',
+  };
+
+  IconData get _icon => switch (metric) {
+    _MetricKind.cpu => Icons.memory,
+    _MetricKind.memory => Icons.storage_outlined,
+    _MetricKind.gpu => Icons.developer_board_outlined,
+    _MetricKind.npu => Icons.auto_awesome_outlined,
+  };
+
+  double? _rawValue(SystemStats? stats) => switch (metric) {
+    _MetricKind.cpu => stats?.cpuPercent,
+    _MetricKind.memory => stats?.memoryGb,
+    _MetricKind.gpu => stats?.gpuPercent,
+    _MetricKind.npu => stats?.npuPercent,
+  };
+
+  String _valueLabel(double? value, double? memoryCapacity) {
+    if (value == null) return 'Unavailable';
+    if (metric != _MetricKind.memory) return '${value.toStringAsFixed(1)}%';
+    if (memoryCapacity == null) return '${value.toStringAsFixed(1)} GiB';
+    return '${value.toStringAsFixed(1)} / ${memoryCapacity.toStringAsFixed(1)} GiB';
+  }
+
+  String _hardwareDetail(SystemInfo? info) => switch (metric) {
+    _MetricKind.cpu =>
+      info == null
+          ? ''
+          : [
+                  info.cpu.name,
+                  '${info.cpu.cores} cores / ${info.cpu.threads} threads',
+                ]
+                .where((value) => !value.startsWith('0 ') && value.isNotEmpty)
+                .join(' · '),
+    _MetricKind.memory => info?.physicalMemory ?? '',
+    _MetricKind.gpu =>
+      info == null
+          ? ''
+          : [...info.allAmdGpus, ...info.allNvidiaGpus]
+                .map((gpu) => gpu.name)
+                .where((name) => name.isNotEmpty)
+                .join(' · '),
+    _MetricKind.npu => info?.amdNpu?.name ?? '',
+  };
 }
 
-class _MetricView extends StatelessWidget {
+class _MetricDetails extends StatelessWidget {
   final String title;
-  final String unit;
+  final String detail;
+  final String value;
+  final bool memoryCapacityUnavailable;
+
+  const _MetricDetails({
+    required this.title,
+    required this.detail,
+    required this.value,
+    required this.memoryCapacityUnavailable,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: theme.textTheme.headlineSmall),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: theme.textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        if (detail.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text(
+            detail,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+        if (memoryCapacityUnavailable) ...[
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Icon(
+                Icons.info_outline,
+                size: 16,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  'Capacity unavailable; percentage cannot be calculated.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _VramPanel extends StatelessWidget {
+  final List<SystemStatsSample> samples;
+  final SystemInfo? info;
+
+  const _VramPanel({required this.samples, required this.info});
+
+  @override
+  Widget build(BuildContext context) {
+    final latest = samples.isEmpty ? null : samples.last.stats.vramGb;
+    final capacity = info?.reportedVramGb ?? 0;
+    final hasCapacity = capacity > 0;
+    final percent = latest != null && hasCapacity
+        ? latest / capacity * 100
+        : null;
+    final theme = Theme.of(context);
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.video_settings_outlined),
+                const SizedBox(width: 10),
+                Text('VRAM', style: theme.textTheme.titleMedium),
+                const Spacer(),
+                Text(
+                  latest == null
+                      ? '—'
+                      : hasCapacity
+                      ? '${latest.toStringAsFixed(1)} / ${capacity.toStringAsFixed(1)} GiB'
+                      : '${latest.toStringAsFixed(1)} GiB',
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            LinearProgressIndicator(
+              value: percent?.clamp(0, 100).toDouble() == null
+                  ? 0
+                  : percent!.clamp(0, 100) / 100,
+              minHeight: 10,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              hasCapacity
+                  ? 'Dedicated capacity reported by the server.'
+                  : 'Shared/unified-memory capacity is not exposed by the server.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HistoryChart extends StatelessWidget {
   final List<SystemStatsSample> samples;
   final double? Function(SystemStats) value;
-  const _MetricView({
-    required this.title,
+  final double maxY;
+  final String unit;
+
+  const _HistoryChart({
     required this.samples,
     required this.value,
+    required this.maxY,
     required this.unit,
   });
 
   @override
   Widget build(BuildContext context) {
-    final latest = samples.isEmpty ? null : value(samples.last.stats);
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: Theme.of(context).textTheme.headlineSmall),
-          Text(
-            latest == null
-                ? 'Unavailable'
-                : '${latest.toStringAsFixed(2)} $unit',
-            style: Theme.of(context).textTheme.headlineMedium,
-          ),
-          const SizedBox(height: 24),
-          Expanded(
-            child: _Chart(samples: samples, value: value),
-          ),
-          const SizedBox(height: 8),
-          const Text('Rolling five-minute history'),
-        ],
-      ),
-    );
-  }
-}
-
-class _GpuView extends StatelessWidget {
-  final List<SystemStatsSample> samples;
-  const _GpuView({required this.samples});
-  @override
-  Widget build(BuildContext context) => ListView(
-    padding: const EdgeInsets.all(20),
-    children: [
-      if (samples.any((s) => s.stats.gpuPercent != null))
-        SizedBox(
-          height: 300,
-          child: _MetricView(
-            title: 'GPU utilization',
-            samples: samples,
-            value: (s) => s.gpuPercent,
-            unit: '%',
-          ),
-        ),
-      if (samples.any((s) => s.stats.vramGb != null))
-        SizedBox(
-          height: 300,
-          child: _MetricView(
-            title: 'VRAM usage',
-            samples: samples,
-            value: (s) => s.vramGb,
-            unit: 'GiB',
-          ),
-        ),
-    ],
-  );
-}
-
-class _Chart extends StatelessWidget {
-  final List<SystemStatsSample> samples;
-  final double? Function(SystemStats) value;
-  const _Chart({required this.samples, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.primary;
+    final now = DateTime.now();
+    final maxX = performanceHistoryDuration.inSeconds.toDouble();
     final segments = <List<FlSpot>>[];
     var current = <FlSpot>[];
-    for (var i = 0; i < samples.length; i++) {
-      final point = value(samples[i].stats);
-      if (point == null) {
+    for (final sample in samples) {
+      final point = value(sample.stats);
+      final x = performanceHistoryX(sample.timestamp, now);
+      if (point == null || x < 0 || x > maxX) {
         if (current.isNotEmpty) segments.add(current);
         current = [];
       } else {
-        current.add(FlSpot(i.toDouble(), point));
+        current.add(FlSpot(x, point.clamp(0, maxY).toDouble()));
       }
     }
     if (current.isNotEmpty) segments.add(current);
-    if (segments.isEmpty) return const Center(child: Text('No data'));
-    return LineChart(
-      LineChartData(
-        lineTouchData: const LineTouchData(enabled: true),
-        gridData: FlGridData(show: true, drawVerticalLine: false),
-        titlesData: const FlTitlesData(
-          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        ),
-        borderData: FlBorderData(show: true),
-        lineBarsData: [
-          for (final segment in segments)
-            LineChartBarData(
-              spots: segment,
-              color: color,
-              barWidth: 2,
-              isCurved: true,
-              dotData: const FlDotData(show: false),
-              belowBarData: BarAreaData(show: true, color: color.withAlpha(28)),
+
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.primary;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 16, 18, 8),
+        child: LineChart(
+          LineChartData(
+            minX: 0,
+            maxX: maxX,
+            minY: 0,
+            maxY: maxY,
+            lineTouchData: LineTouchData(enabled: segments.isNotEmpty),
+            gridData: FlGridData(
+              show: true,
+              horizontalInterval: maxY / 4,
+              verticalInterval: maxX / 5,
+              getDrawingHorizontalLine: (_) => FlLine(
+                color: theme.colorScheme.outlineVariant.withAlpha(100),
+                strokeWidth: 1,
+              ),
+              getDrawingVerticalLine: (_) => FlLine(
+                color: theme.colorScheme.outlineVariant.withAlpha(70),
+                strokeWidth: 1,
+              ),
             ),
-        ],
+            titlesData: FlTitlesData(
+              topTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
+              rightTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
+              bottomTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
+              leftTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  reservedSize: 54,
+                  interval: maxY / 4,
+                  getTitlesWidget: (value, meta) => SideTitleWidget(
+                    meta: meta,
+                    child: Text(
+                      unit == '%'
+                          ? '${value.round()}%'
+                          : '${value.toStringAsFixed(value >= 10 ? 0 : 1)} GiB',
+                      style: theme.textTheme.labelSmall,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            borderData: FlBorderData(show: false),
+            lineBarsData: [
+              for (final segment in segments)
+                LineChartBarData(
+                  spots: segment,
+                  color: color,
+                  barWidth: 2.5,
+                  isCurved: segment.length > 2,
+                  preventCurveOverShooting: true,
+                  dotData: FlDotData(show: segment.length == 1),
+                  belowBarData: BarAreaData(
+                    show: true,
+                    color: color.withAlpha(30),
+                  ),
+                ),
+            ],
+          ),
+          duration: const Duration(milliseconds: 250),
+        ),
       ),
     );
   }
+}
+
+double _fallbackMemoryMax(List<SystemStatsSample> samples) {
+  final largest = samples
+      .map((sample) => sample.stats.memoryGb ?? 0)
+      .fold<double>(0, math.max);
+  return math.max(1, (largest * 1.2).ceilToDouble());
+}
+
+String get _historyLabel {
+  final minutes = performanceHistoryDuration.inMinutes;
+  return '$minutes minute${minutes == 1 ? '' : 's'} ago';
 }

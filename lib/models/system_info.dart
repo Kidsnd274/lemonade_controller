@@ -290,6 +290,41 @@ class SystemInfo {
   List<GpuInfo> get allNvidiaGpus =>
       nvidiaGpus.isNotEmpty ? nvidiaGpus : nvidiaDgpus;
 
+  bool get hasGpu => allAmdGpus.isNotEmpty || allNvidiaGpus.isNotEmpty;
+
+  bool get hasNpu => amdNpu != null;
+
+  /// Total dedicated memory reported across detected GPUs.
+  ///
+  /// Unified/shared-memory partitions are not currently exposed by the
+  /// server, so zero means that no useful dedicated capacity was reported.
+  double get reportedVramGb => [
+    ...allAmdGpus,
+    ...allNvidiaGpus,
+  ].fold(0, (total, gpu) => total + gpu.vramGb);
+
+  /// Parsed physical-memory capacity in GiB.
+  ///
+  /// Lemonade currently returns this as a human-readable string. Accept the
+  /// common binary and decimal labels while keeping GB/GiB numerically aligned
+  /// with the server's `memory_gb` telemetry.
+  double? get physicalMemoryGb {
+    final normalized = physicalMemory.trim().replaceAll(',', '');
+    final match = RegExp(
+      r'([0-9]+(?:\.[0-9]+)?)\s*([kmgt]i?b)?',
+      caseSensitive: false,
+    ).firstMatch(normalized);
+    if (match == null) return null;
+    final value = double.tryParse(match.group(1)!);
+    if (value == null || value <= 0) return null;
+    return switch (match.group(2)?.toLowerCase()) {
+      'kb' || 'kib' => value / (1024 * 1024),
+      'mb' || 'mib' => value / 1024,
+      'tb' || 'tib' => value * 1024,
+      _ => value,
+    };
+  }
+
   List<GpuInfo> get _legacyAmdGpus {
     final gpus = <GpuInfo>[];
     if (amdIgpu != null) gpus.add(amdIgpu!);
