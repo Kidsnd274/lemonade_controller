@@ -246,16 +246,21 @@ class _CompactRequestRow extends StatelessWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _RequestHeader(
+              _CompactRequestIdentityLine(
                 task: task,
                 title: title,
-                detailed: false,
-                canToggle: true,
+                showChevron: true,
               ),
-              const SizedBox(height: 7),
-              SizedBox(
-                width: constraints.maxWidth * .68,
-                child: _CompactProgress(task: task, now: now),
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: _CompactProgress(task: task, now: now),
+                  ),
+                  const SizedBox(width: 12),
+                  _PhaseChip(phase: task.phase),
+                ],
               ),
             ],
           );
@@ -267,7 +272,7 @@ class _CompactRequestRow extends StatelessWidget {
         return Row(
           children: [
             Expanded(
-              child: _RequestIdentityBlock(task: task, title: title),
+              child: _CompactRequestIdentityLine(task: task, title: title),
             ),
             const SizedBox(width: 16),
             SizedBox(
@@ -285,6 +290,53 @@ class _CompactRequestRow extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _CompactRequestIdentityLine extends StatelessWidget {
+  final InferenceTaskActivity task;
+  final String title;
+  final bool showChevron;
+
+  const _CompactRequestIdentityLine({
+    required this.task,
+    required this.title,
+    this.showChevron = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Text(
+          title,
+          maxLines: 1,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            _compactRequestIdentity(task),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        if (showChevron) ...[
+          const SizedBox(width: 4),
+          Icon(
+            Icons.expand_more,
+            size: 20,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ],
+      ],
     );
   }
 }
@@ -593,6 +645,11 @@ class _CompactProgress extends StatelessWidget {
 String _requestIdentity(InferenceTaskActivity task) {
   if (task.taskId == null) return 'Incoming request';
   return 'Request #${task.taskId} · Slot ${task.slotId ?? '—'}';
+}
+
+String _compactRequestIdentity(InferenceTaskActivity task) {
+  if (task.taskId == null) return 'Incoming';
+  return '#${task.taskId} · Slot ${task.slotId ?? '—'}';
 }
 
 String _phaseLabel(InferencePhase phase) => switch (phase) {

@@ -181,6 +181,51 @@ void main() {
       expect(state.activeRequests.map((request) => request.taskId), [11248]);
     });
 
+    test('removes cancelled tasks without recording a normal completion', () {
+      var now = DateTime.parse('2026-07-12T02:35:08.600');
+      final tracker = InferenceActivityTracker(clock: () => now);
+      final entries = <LogEntry>[
+        _entry(
+          1,
+          '2026-07-12 02:35:05.506',
+          'POST /api/v1/chat/completions - Streaming',
+          tag: 'Server',
+        ),
+        _entry(
+          2,
+          '2026-07-12 02:35:05.617',
+          'slot launch_slot_: id  0 | task 14005 | processing task, is_child = 0',
+        ),
+      ];
+
+      var state = tracker.synchronize(_connected(entries));
+      expect(state.activeRequests.single.taskId, 14005);
+
+      entries.add(
+        _entry(
+          3,
+          '2026-07-12 02:35:08.651',
+          'srv          stop: cancel task, id_task = 14005',
+        ),
+      );
+      now = DateTime.parse('2026-07-12T02:35:08.652');
+      state = tracker.synchronize(_connected(entries));
+      expect(state.activeRequests, isEmpty);
+      expect(state.recentCompletion, isNull);
+
+      entries.add(
+        _entry(
+          4,
+          '2026-07-12 02:35:08.684',
+          'slot      release: id  0 | task 14005 | stop processing: n_tokens = 42215, truncated = 0',
+        ),
+      );
+      now = DateTime.parse('2026-07-12T02:35:08.685');
+      state = tracker.synchronize(_connected(entries));
+      expect(state.activeRequests, isEmpty);
+      expect(state.recentCompletion, isNull);
+    });
+
     test('fails closed for unknown logs and resets on disconnect', () {
       final now = DateTime.parse('2026-07-12T00:00:00');
       final tracker = InferenceActivityTracker(clock: () => now);
@@ -302,6 +347,7 @@ void main() {
       await _pumpPanel(tester, state);
       expect(find.text('Main request'), findsOneWidget);
       expect(find.text('Concurrent request'), findsOneWidget);
+      expect(find.text('#11248 · Slot 0'), findsOneWidget);
       expect(
         find.text('1 other request is sharing server capacity.'),
         findsOneWidget,

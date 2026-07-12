@@ -167,6 +167,9 @@ class InferenceActivityTracker {
   static final _generationPattern = RegExp(
     r'slot\s+print_timing:\s+id\s+(\d+)\s*\|\s*task\s+(\d+)\s*\|\s*n_decoded\s*=\s*(\d+),\s*tg\s*=\s*([0-9.]+)\s*t/s,\s*tg_3s\s*=\s*([0-9.]+)\s*t/s',
   );
+  static final _cancelPattern = RegExp(
+    r'srv\s+stop:\s+cancel task,\s*id_task\s*=\s*(\d+)',
+  );
   static final _releasePattern = RegExp(
     r'slot\s+release:\s+id\s+(\d+)\s*\|\s*task\s+(\d+)\s*\|\s*stop processing',
   );
@@ -179,6 +182,7 @@ class InferenceActivityTracker {
 
   final DateTime Function() _clock;
   final Map<String, InferenceTaskActivity> _active = {};
+  final Map<int, DateTime> _cancelledTasks = {};
   final List<String> _pendingKeys = [];
   final List<InferenceCompletion> _unmatchedCompletions = [];
   int? _lastSequence;
@@ -198,6 +202,7 @@ class InferenceActivityTracker {
     if (_connectionStatus != LogConnectionStatus.connected) {
       _lastSequence = null;
       _active.clear();
+      _cancelledTasks.clear();
       _pendingKeys.clear();
       _unmatchedCompletions.clear();
       _recentCompletion = null;
@@ -339,6 +344,22 @@ class InferenceActivityTracker {
       return true;
     }
 
+    if (line.contains('cancel task')) {
+      final match = _cancelPattern.firstMatch(line);
+      if (match == null) return false;
+      _formatSupported = true;
+      final taskId = int.parse(match.group(1)!);
+      _active.remove('task:$taskId');
+      _cancelledTasks[taskId] = eventTime;
+      _unmatchedCompletions.removeWhere(
+        (completion) => completion.task.taskId == taskId,
+      );
+      if (_recentCompletion?.task.taskId == taskId) {
+        _recentCompletion = null;
+      }
+      return true;
+    }
+
     if (line.contains('stop processing')) {
       final match = _releasePattern.firstMatch(line);
       if (match == null) return false;
@@ -346,6 +367,10 @@ class InferenceActivityTracker {
       final slotId = int.parse(match.group(1)!);
       final taskId = int.parse(match.group(2)!);
       final key = 'task:$taskId';
+      if (_cancelledTasks.remove(taskId) != null) {
+        _active.remove(key);
+        return true;
+      }
       final task =
           (_active.remove(key) ??
                   InferenceTaskActivity(
@@ -462,6 +487,9 @@ class InferenceActivityTracker {
       _active.remove(key);
       _pendingKeys.remove(key);
     }
+    _cancelledTasks.removeWhere(
+      (_, cancelledAt) => now.difference(cancelledAt) > staleActivityAge,
+    );
     if (_recentCompletion != null &&
         now.difference(_recentCompletion!.completedAt) > completionDisplayAge) {
       _recentCompletion = null;
@@ -480,6 +508,7 @@ class InferenceActivityTracker {
     _connectionStatus = status;
     _lastSequence = null;
     _active.clear();
+    _cancelledTasks.clear();
     _pendingKeys.clear();
     _unmatchedCompletions.clear();
     _recentCompletion = null;
