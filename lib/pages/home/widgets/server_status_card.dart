@@ -87,6 +87,7 @@ class ServerStatusCard extends ConsumerWidget {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                  const _InferenceReadyIndicator(),
                   const Spacer(),
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -168,11 +169,62 @@ class _InferenceActivitySection extends ConsumerWidget {
     if (!isForeground) return const SizedBox.shrink();
 
     final activity = ref.watch(inferenceActivityProvider);
-    if (!activity.shouldShow) return const SizedBox.shrink();
+    if (!activity.shouldShow || activity.activeRequests.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return Padding(
       padding: const EdgeInsets.only(top: 12),
       child: InferenceActivityPanel(activity: activity),
+    );
+  }
+}
+
+class _InferenceReadyIndicator extends ConsumerWidget {
+  const _InferenceReadyIndicator();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isForeground = ref.watch(appForegroundProvider);
+    if (!isForeground) return const SizedBox.shrink();
+
+    final isReady = ref.watch(
+      inferenceActivityProvider.select(
+        (activity) => activity.shouldShow && activity.activeRequests.isEmpty,
+      ),
+    );
+    if (!isReady) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    final compact = MediaQuery.sizeOf(context).width < 430;
+    return Tooltip(
+      message: 'Ready for requests',
+      child: Container(
+        margin: const EdgeInsets.only(left: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.tertiaryContainer,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.check_rounded,
+              size: 13,
+              color: theme.colorScheme.onTertiaryContainer,
+            ),
+            const SizedBox(width: 3),
+            Text(
+              compact ? 'Ready' : 'Ready for requests',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onTertiaryContainer,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

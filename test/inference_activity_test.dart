@@ -308,6 +308,14 @@ void main() {
       );
       expect(find.byIcon(Icons.expand_more), findsOneWidget);
       expect(find.byIcon(Icons.expand_less), findsNothing);
+      expect(find.text('Prompt Processing'), findsOneWidget);
+      expect(find.text('Token Generation'), findsOneWidget);
+      final collapsedBars = find.byType(LinearProgressIndicator);
+      expect(collapsedBars, findsNWidgets(2));
+      expect(
+        tester.getSize(collapsedBars.at(1)).width,
+        lessThan(tester.getSize(collapsedBars.at(0)).width),
+      );
 
       await tester.tap(find.text('Concurrent request'));
       await tester.pump(const Duration(milliseconds: 250));
@@ -315,6 +323,47 @@ void main() {
       expect(find.text('Main request'), findsOneWidget);
       expect(find.text('Received'), findsNWidgets(2));
       expect(find.text('Done'), findsNWidgets(2));
+    });
+
+    testWidgets('caps secondary progress width on wide layouts', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(1000, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final now = DateTime.parse('2026-07-12T00:37:05');
+      await _pumpPanel(
+        tester,
+        InferenceActivityState(
+          connectionStatus: LogConnectionStatus.connected,
+          formatSupported: true,
+          activeRequests: [
+            _task(
+              key: 'task:1',
+              taskId: 1,
+              slotId: 0,
+              startedAt: now.subtract(const Duration(seconds: 10)),
+              phase: InferencePhase.promptProcessing,
+              progress: .5,
+            ),
+            _task(
+              key: 'task:2',
+              taskId: 2,
+              slotId: 1,
+              startedAt: now.subtract(const Duration(seconds: 5)),
+              phase: InferencePhase.generating,
+            ),
+          ],
+          now: now,
+        ),
+      );
+
+      final bars = find.byType(LinearProgressIndicator);
+      expect(bars, findsNWidgets(2));
+      expect(tester.getSize(bars.at(1)).width, lessThanOrEqualTo(240));
+      expect(
+        tester.getSize(bars.at(0)).width,
+        greaterThan(tester.getSize(bars.at(1)).width * 2),
+      );
     });
 
     testWidgets('promotes the remaining request into a detailed single view', (
@@ -363,9 +412,7 @@ void main() {
       expect(find.byIcon(Icons.expand_more), findsNothing);
     });
 
-    testWidgets('shows a compact ready state when supported and idle', (
-      tester,
-    ) async {
+    testWidgets('hides the panel when supported and idle', (tester) async {
       await _pumpPanel(
         tester,
         InferenceActivityState(
@@ -374,7 +421,8 @@ void main() {
           now: DateTime.parse('2026-07-12T00:00:00'),
         ),
       );
-      expect(find.text('Ready for requests'), findsOneWidget);
+      expect(find.text('Live inference'), findsNothing);
+      expect(find.text('Ready for requests'), findsNothing);
     });
   });
 

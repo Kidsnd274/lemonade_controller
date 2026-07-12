@@ -27,23 +27,14 @@ class _InferenceActivityPanelState extends State<InferenceActivityPanel> {
   @override
   Widget build(BuildContext context) {
     final requests = widget.activity.activeRequests;
+    if (requests.isEmpty) return const SizedBox.shrink();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _ActivityHeader(activity: widget.activity),
         const SizedBox(height: 8),
-        if (requests.isEmpty)
-          if (widget.activity.recentCompletion case final completion?)
-            _RequestCard(
-              task: completion.task,
-              now: widget.activity.now,
-              completion: completion,
-              title: 'Request completed',
-              detailed: true,
-            )
-          else
-            const _ReadyState()
-        else if (requests.length == 1)
+        if (requests.length == 1)
           _RequestCard(
             task: requests.single,
             now: widget.activity.now,
@@ -131,40 +122,9 @@ class _ActivityHeader extends StatelessWidget {
   }
 }
 
-class _ReadyState extends StatelessWidget {
-  const _ReadyState();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.check_circle_outline, color: Colors.green, size: 19),
-          const SizedBox(width: 8),
-          Text(
-            'Ready for requests',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _RequestCard extends StatelessWidget {
   final InferenceTaskActivity task;
   final DateTime now;
-  final InferenceCompletion? completion;
   final String title;
   final bool detailed;
   final VoidCallback? onToggle;
@@ -174,7 +134,6 @@ class _RequestCard extends StatelessWidget {
     required this.now,
     required this.title,
     required this.detailed,
-    this.completion,
     this.onToggle,
   });
 
@@ -185,25 +144,26 @@ class _RequestCard extends StatelessWidget {
       duration: const Duration(milliseconds: 180),
       alignment: Alignment.topCenter,
       child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _RequestHeader(
-              task: task,
-              title: title,
-              detailed: detailed,
-              canToggle: onToggle != null,
-            ),
-            const SizedBox(height: 10),
-            if (detailed) ...[
-              _StageRail(phase: task.phase),
-              const SizedBox(height: 12),
-              _DetailedProgress(task: task, now: now, completion: completion),
-            ] else
-              _CompactProgress(task: task, now: now),
-          ],
-        ),
+        padding: detailed
+            ? const EdgeInsets.all(12)
+            : const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        child: detailed
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _RequestHeader(
+                    task: task,
+                    title: title,
+                    detailed: detailed,
+                    canToggle: onToggle != null,
+                  ),
+                  const SizedBox(height: 10),
+                  _StageRail(phase: task.phase),
+                  const SizedBox(height: 12),
+                  _DetailedProgress(task: task, now: now),
+                ],
+              )
+            : _CompactRequestRow(task: task, now: now, title: title),
       ),
     );
 
@@ -251,24 +211,7 @@ class _RequestHeader extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 1),
-              Text(
-                _requestIdentity(task),
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
+          child: _RequestIdentityBlock(task: task, title: title),
         ),
         _PhaseChip(phase: task.phase),
         if (canToggle) ...[
@@ -279,6 +222,102 @@ class _RequestHeader extends StatelessWidget {
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ],
+      ],
+    );
+  }
+}
+
+class _CompactRequestRow extends StatelessWidget {
+  final InferenceTaskActivity task;
+  final DateTime now;
+  final String title;
+
+  const _CompactRequestRow({
+    required this.task,
+    required this.now,
+    required this.title,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 720) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _RequestHeader(
+                task: task,
+                title: title,
+                detailed: false,
+                canToggle: true,
+              ),
+              const SizedBox(height: 7),
+              SizedBox(
+                width: constraints.maxWidth * .68,
+                child: _CompactProgress(task: task, now: now),
+              ),
+            ],
+          );
+        }
+
+        final progressWidth = (constraints.maxWidth * .26)
+            .clamp(150.0, 240.0)
+            .toDouble();
+        return Row(
+          children: [
+            Expanded(
+              child: _RequestIdentityBlock(task: task, title: title),
+            ),
+            const SizedBox(width: 16),
+            SizedBox(
+              width: progressWidth,
+              child: _CompactProgress(task: task, now: now),
+            ),
+            const SizedBox(width: 14),
+            _PhaseChip(phase: task.phase),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.expand_more,
+              size: 20,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _RequestIdentityBlock extends StatelessWidget {
+  final InferenceTaskActivity task;
+  final String title;
+
+  const _RequestIdentityBlock({required this.task, required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 1),
+        Text(
+          _requestIdentity(task),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
       ],
     );
   }
@@ -301,7 +340,7 @@ class _PhaseChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
-        _phaseLabel(phase),
+        _phaseBadgeLabel(phase),
         style: theme.textTheme.labelSmall?.copyWith(
           fontWeight: FontWeight.w700,
           color: phase == InferencePhase.completed
@@ -386,13 +425,8 @@ class _StageRail extends StatelessWidget {
 class _DetailedProgress extends StatelessWidget {
   final InferenceTaskActivity task;
   final DateTime now;
-  final InferenceCompletion? completion;
 
-  const _DetailedProgress({
-    required this.task,
-    required this.now,
-    this.completion,
-  });
+  const _DetailedProgress({required this.task, required this.now});
 
   @override
   Widget build(BuildContext context) {
@@ -436,12 +470,6 @@ class _DetailedProgress extends StatelessWidget {
       case InferencePhase.completed:
         status = 'Completed';
         indicatorValue = 1;
-        if (completion?.totalTokens case final tokens?) {
-          metrics.add('$tokens total tok');
-        }
-        if (completion?.tokensPerSecond case final speed?) {
-          metrics.add('${speed.toStringAsFixed(1)} tk/s');
-        }
     }
 
     return Column(
@@ -498,17 +526,6 @@ class _DetailedProgress extends StatelessWidget {
               ),
           ],
         ),
-        if (completion?.model case final model?) ...[
-          const SizedBox(height: 5),
-          Text(
-            model,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
       ],
     );
   }
@@ -582,6 +599,13 @@ String _phaseLabel(InferencePhase phase) => switch (phase) {
   InferencePhase.received => 'Received',
   InferencePhase.promptProcessing => 'Prompt',
   InferencePhase.generating => 'Generating',
+  InferencePhase.completed => 'Done',
+};
+
+String _phaseBadgeLabel(InferencePhase phase) => switch (phase) {
+  InferencePhase.received => 'Received',
+  InferencePhase.promptProcessing => 'Prompt Processing',
+  InferencePhase.generating => 'Token Generation',
   InferencePhase.completed => 'Done',
 };
 
