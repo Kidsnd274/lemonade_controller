@@ -158,7 +158,7 @@ class _RequestCard extends StatelessWidget {
                     canToggle: onToggle != null,
                   ),
                   const SizedBox(height: 10),
-                  _StageRail(phase: task.phase),
+                  _StageRail(task: task),
                   const SizedBox(height: 12),
                   _DetailedProgress(task: task, now: now),
                 ],
@@ -405,22 +405,32 @@ class _PhaseChip extends StatelessWidget {
 }
 
 class _StageRail extends StatelessWidget {
-  final InferencePhase phase;
+  final InferenceTaskActivity task;
 
-  const _StageRail({required this.phase});
+  const _StageRail({required this.task});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    const stages = [
-      (InferencePhase.received, 'Received'),
-      (InferencePhase.promptProcessing, 'Prompt'),
-      (InferencePhase.generating, 'Generating'),
-      (InferencePhase.completed, 'Done'),
-    ];
-    final current = phase.index;
+    final stages = task.includesModelLoading
+        ? const [
+            (InferencePhase.modelLoading, 'Loading'),
+            (InferencePhase.promptProcessing, 'Prompt'),
+            (InferencePhase.generating, 'Generating'),
+            (InferencePhase.completed, 'Done'),
+          ]
+        : const [
+            (InferencePhase.received, 'Received'),
+            (InferencePhase.promptProcessing, 'Prompt'),
+            (InferencePhase.generating, 'Generating'),
+            (InferencePhase.completed, 'Done'),
+          ];
+    final current =
+        task.includesModelLoading && task.phase == InferencePhase.received
+        ? 0
+        : stages.indexWhere((stage) => stage.$1 == task.phase);
     return Semantics(
-      label: 'Request stage: ${_phaseLabel(phase)}',
+      label: 'Request stage: ${_phaseLabel(task.phase)}',
       child: Row(
         children: [
           for (var index = 0; index < stages.length; index++) ...[
@@ -462,6 +472,7 @@ class _StageRail extends StatelessWidget {
                         ),
                       ),
                     ),
+                    if (index < current) const SizedBox(width: 14),
                   ],
                 ),
               ),
@@ -490,6 +501,8 @@ class _DetailedProgress extends StatelessWidget {
     double? indicatorValue;
 
     switch (task.phase) {
+      case InferencePhase.modelLoading:
+        status = task.model == null ? 'Loading model' : 'Loading ${task.model}';
       case InferencePhase.received:
         status = 'Waiting for compute';
       case InferencePhase.promptProcessing:
@@ -504,11 +517,11 @@ class _DetailedProgress extends StatelessWidget {
             metrics.add('${speed.toStringAsFixed(1)} tk/s');
           }
           metrics.add(
-            task.promptProgressPerSecond == null
+            eta == null
                 ? 'Estimating time remaining'
                 : eta == Duration.zero
                 ? 'Almost done'
-                : '~${_formatDuration(eta!)} left',
+                : '~${_formatDuration(eta)} left',
           );
         }
       case InferencePhase.generating:
@@ -598,6 +611,8 @@ class _CompactProgress extends StatelessWidget {
         ? 1.0
         : null;
     final detail = switch (task.phase) {
+      InferencePhase.modelLoading =>
+        task.model == null ? 'Loading model' : 'Loading ${task.model}',
       InferencePhase.received => 'Waiting for compute',
       InferencePhase.promptProcessing =>
         task.promptProgress == null
@@ -643,16 +658,19 @@ class _CompactProgress extends StatelessWidget {
 }
 
 String _requestIdentity(InferenceTaskActivity task) {
-  if (task.taskId == null) return 'Incoming request';
+  if (task.taskId == null) {
+    return task.model == null ? 'Incoming request' : 'Model ${task.model}';
+  }
   return 'Request #${task.taskId} · Slot ${task.slotId ?? '—'}';
 }
 
 String _compactRequestIdentity(InferenceTaskActivity task) {
-  if (task.taskId == null) return 'Incoming';
+  if (task.taskId == null) return task.model ?? 'Incoming';
   return '#${task.taskId} · Slot ${task.slotId ?? '—'}';
 }
 
 String _phaseLabel(InferencePhase phase) => switch (phase) {
+  InferencePhase.modelLoading => 'Loading Model',
   InferencePhase.received => 'Received',
   InferencePhase.promptProcessing => 'Prompt',
   InferencePhase.generating => 'Generating',
@@ -660,6 +678,7 @@ String _phaseLabel(InferencePhase phase) => switch (phase) {
 };
 
 String _phaseBadgeLabel(InferencePhase phase) => switch (phase) {
+  InferencePhase.modelLoading => 'Loading Model',
   InferencePhase.received => 'Received',
   InferencePhase.promptProcessing => 'Prompt Processing',
   InferencePhase.generating => 'Token Generation',

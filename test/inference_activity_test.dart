@@ -85,7 +85,108 @@ void main() {
       expect(state.recentCompletion?.task.phase, InferencePhase.completed);
     });
 
-    test('uses progress deltas when a cached prompt starts at high progress', () {
+    test('carries an auto-loaded model into the responses inference task', () {
+      var now = DateTime.parse('2026-07-13T20:44:15.300');
+      final tracker = InferenceActivityTracker(clock: () => now);
+      final entries = <LogEntry>[
+        _entry(
+          1,
+          '2026-07-13 20:44:15.207',
+          'Auto-loading model: gemma-4-31B-it-GGUF-UD-Q6_K_XL',
+          tag: 'Server',
+        ),
+      ];
+
+      var state = tracker.synchronize(_connected(entries));
+      expect(state.shouldShow, isTrue);
+      expect(state.activeRequests, hasLength(1));
+      expect(state.activeRequests.single.phase, InferencePhase.modelLoading);
+      expect(
+        state.activeRequests.single.model,
+        'gemma-4-31B-it-GGUF-UD-Q6_K_XL',
+      );
+      expect(state.activeRequests.single.includesModelLoading, isTrue);
+
+      entries.add(
+        _entry(
+          2,
+          '2026-07-13 20:44:38.646',
+          'Model loaded successfully: gemma-4-31B-it-GGUF-UD-Q6_K_XL',
+          tag: 'Server',
+        ),
+      );
+      now = DateTime.parse('2026-07-13T20:44:38.650');
+      state = tracker.synchronize(_connected(entries));
+      expect(state.activeRequests.single.phase, InferencePhase.received);
+
+      entries.addAll([
+        _entry(
+          3,
+          '2026-07-13 20:44:38.646',
+          'POST /api/v1/responses - Streaming',
+          tag: 'Server',
+        ),
+        _entry(
+          4,
+          '2026-07-13 20:44:38.716',
+          'slot launch_slot_: id  3 | task 0 | processing task, is_child = 0',
+        ),
+      ]);
+      now = DateTime.parse('2026-07-13T20:44:38.720');
+      state = tracker.synchronize(_connected(entries));
+
+      expect(state.activeRequests, hasLength(1));
+      final request = state.activeRequests.single;
+      expect(request.key, 'task:0');
+      expect(request.taskId, 0);
+      expect(request.slotId, 3);
+      expect(request.phase, InferencePhase.promptProcessing);
+      expect(request.model, 'gemma-4-31B-it-GGUF-UD-Q6_K_XL');
+      expect(request.includesModelLoading, isTrue);
+      expect(request.startedAt, DateTime.parse('2026-07-13T20:44:15.207'));
+    });
+
+    test('clears failed and stale auto-loading activities', () {
+      var now = DateTime.parse('2026-07-13T20:44:16');
+      final failedTracker = InferenceActivityTracker(clock: () => now);
+      final failedEntries = <LogEntry>[
+        _entry(
+          1,
+          '2026-07-13 20:44:15.207',
+          'Auto-loading model: broken-model',
+          tag: 'Server',
+        ),
+        _entry(
+          2,
+          '2026-07-13 20:44:15.900',
+          'Failed to load model: backend initialization failed',
+          tag: 'Server',
+        ),
+      ];
+
+      var state = failedTracker.synchronize(_connected(failedEntries));
+      expect(state.activeRequests, isEmpty);
+      expect(state.shouldShow, isTrue);
+
+      final staleTracker = InferenceActivityTracker(clock: () => now);
+      state = staleTracker.synchronize(
+        _connected([
+          _entry(
+            1,
+            '2026-07-13 20:44:15.207',
+            'Auto-loading model: stalled-model',
+            tag: 'Server',
+          ),
+        ]),
+      );
+      expect(state.activeRequests, hasLength(1));
+
+      now = DateTime.parse('2026-07-13T20:50:00');
+      state = staleTracker.tick();
+      expect(state.activeRequests, isEmpty);
+    });
+
+    test('waits for multiple timing points when cached progress starts high', () {
       var now = DateTime.parse('2026-07-12T00:36:25');
       final tracker = InferenceActivityTracker(clock: () => now);
       final entries = [
@@ -122,7 +223,47 @@ void main() {
       state = tracker.synchronize(_connected(entries));
       final eta = state.activeRequests.single.promptEtaAt(now);
       expect(eta, isNotNull);
+      expect(state.activeRequests.single.promptTimingSamples, hasLength(2));
       expect(eta!.inSeconds, inInclusiveRange(5, 7));
+    });
+
+    test('fits all prompt timing points to account for decreasing speed', () {
+      final now = DateTime.parse('2026-07-12T00:00:12');
+      final tracker = InferenceActivityTracker(clock: () => now);
+      final state = tracker.synchronize(
+        _connected([
+          _entry(
+            1,
+            '2026-07-12 00:00:00.000',
+            'POST /api/v1/chat/completions - Streaming',
+            tag: 'Server',
+          ),
+          _entry(
+            2,
+            '2026-07-12 00:00:00.100',
+            'slot launch_slot_: id  0 | task 10 | processing task, is_child = 0',
+          ),
+          _entry(
+            3,
+            '2026-07-12 00:00:02.000',
+            'slot print_timing: id  0 | task 10 | prompt processing, n_tokens =   1000, progress = 0.25, t =   2.00 s / 500.00 tokens per second',
+          ),
+          _entry(
+            4,
+            '2026-07-12 00:00:06.000',
+            'slot print_timing: id  0 | task 10 | prompt processing, n_tokens =   2000, progress = 0.50, t =   6.00 s / 333.33 tokens per second',
+          ),
+          _entry(
+            5,
+            '2026-07-12 00:00:12.000',
+            'slot print_timing: id  0 | task 10 | prompt processing, n_tokens =   3000, progress = 0.75, t =  12.00 s / 250.00 tokens per second',
+          ),
+        ]),
+      );
+
+      final request = state.activeRequests.single;
+      expect(request.promptTimingSamples, hasLength(3));
+      expect(request.promptEtaAt(now), const Duration(seconds: 8));
     });
 
     test('keeps concurrent requests ordered oldest-first and removes by task', () {
@@ -226,6 +367,93 @@ void main() {
       expect(state.recentCompletion, isNull);
     });
 
+    test('clears a finalizing request when its model is unloaded', () {
+      var now = DateTime.parse('2026-07-13T23:06:14.500');
+      final tracker = InferenceActivityTracker(clock: () => now);
+      final entries = <LogEntry>[
+        _entry(
+          1,
+          '2026-07-13 23:06:08.044',
+          'Model already loaded: gemma-4-31B-it-GGUF-UD-Q6_K_XL',
+          tag: 'Server',
+        ),
+        _entry(
+          2,
+          '2026-07-13 23:06:08.044',
+          'POST /api/v1/responses - Streaming',
+          tag: 'Server',
+        ),
+        _entry(
+          3,
+          '2026-07-13 23:06:08.143',
+          'slot launch_slot_: id  3 | task 156 | processing task, is_child = 0',
+        ),
+        _entry(
+          4,
+          '2026-07-13 23:06:14.423',
+          'slot print_timing: id  3 | task 156 | prompt processing, n_tokens =    346, progress = 1.00, t =   6.28 s / 55.10 tokens per second',
+        ),
+      ];
+
+      var state = tracker.synchronize(_connected(entries));
+      expect(state.activeRequests, hasLength(1));
+      expect(
+        state.activeRequests.single.phase,
+        InferencePhase.promptProcessing,
+      );
+      expect(state.activeRequests.single.promptProgress, 1);
+      expect(
+        state.activeRequests.single.model,
+        'gemma-4-31B-it-GGUF-UD-Q6_K_XL',
+      );
+
+      entries.add(
+        _entry(
+          5,
+          '2026-07-13 23:06:15.663',
+          'Unload model called: gemma-4-31B-it-GGUF-UD-Q6_K_XL',
+          tag: 'Router',
+        ),
+      );
+      now = DateTime.parse('2026-07-13T23:06:15.664');
+      state = tracker.synchronize(_connected(entries));
+      expect(state.activeRequests, isEmpty);
+    });
+
+    test('clears the latest task when an SSE stream disconnects', () {
+      final now = DateTime.parse('2026-07-13T23:06:21.547');
+      final tracker = InferenceActivityTracker(clock: () => now);
+      final state = tracker.synchronize(
+        _connected([
+          _entry(
+            1,
+            '2026-07-13 23:06:08.044',
+            'POST /api/v1/responses - Streaming',
+            tag: 'Server',
+          ),
+          _entry(
+            2,
+            '2026-07-13 23:06:08.143',
+            'slot launch_slot_: id  3 | task 156 | processing task, is_child = 0',
+          ),
+          _entry(
+            3,
+            '2026-07-13 23:06:21.373',
+            'slot print_timing: id  3 | task 156 | prompt processing, n_tokens =    372, progress = 1.00, t =  13.23 s / 28.12 tokens per second',
+          ),
+          _entry(
+            4,
+            '2026-07-13 23:06:21.546',
+            'Client disconnected during SSE stream (CURL error: Failed writing received data to disk/application)',
+            tag: 'StreamingProxy',
+          ),
+        ]),
+      );
+
+      expect(state.activeRequests, isEmpty);
+      expect(state.recentCompletion, isNull);
+    });
+
     test('fails closed for unknown logs and resets on disconnect', () {
       final now = DateTime.parse('2026-07-12T00:00:00');
       final tracker = InferenceActivityTracker(clock: () => now);
@@ -316,6 +544,91 @@ void main() {
   });
 
   group('InferenceActivityPanel', () {
+    testWidgets('shows model loading as the first inference stage', (
+      tester,
+    ) async {
+      final now = DateTime.parse('2026-07-13T20:44:20');
+      await _pumpPanel(
+        tester,
+        InferenceActivityState(
+          connectionStatus: LogConnectionStatus.connected,
+          formatSupported: true,
+          activeRequests: [
+            InferenceTaskActivity(
+              key: 'loading:1',
+              model: 'gemma-4-31B-it-GGUF-UD-Q6_K_XL',
+              includesModelLoading: true,
+              phase: InferencePhase.modelLoading,
+              startedAt: now.subtract(const Duration(seconds: 5)),
+              updatedAt: now.subtract(const Duration(seconds: 5)),
+            ),
+          ],
+          now: now,
+        ),
+      );
+
+      expect(find.text('Live inference'), findsOneWidget);
+      expect(find.text('Loading Model'), findsOneWidget);
+      expect(find.text('Model gemma-4-31B-it-GGUF-UD-Q6_K_XL'), findsOneWidget);
+      expect(
+        find.text('Loading gemma-4-31B-it-GGUF-UD-Q6_K_XL'),
+        findsOneWidget,
+      );
+      expect(find.text('Loading'), findsOneWidget);
+      expect(find.text('Prompt'), findsOneWidget);
+      expect(find.text('Generating'), findsOneWidget);
+      expect(find.text('Done'), findsOneWidget);
+      expect(find.text('Received'), findsNothing);
+      expect(
+        tester
+            .widget<LinearProgressIndicator>(
+              find.byType(LinearProgressIndicator),
+            )
+            .value,
+        isNull,
+      );
+    });
+
+    testWidgets('keeps completed stage labels centered beside checkmarks', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(620, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final now = DateTime.parse('2026-07-13T20:45:00');
+      await _pumpPanel(
+        tester,
+        InferenceActivityState(
+          connectionStatus: LogConnectionStatus.connected,
+          formatSupported: true,
+          activeRequests: [
+            InferenceTaskActivity(
+              key: 'task:0',
+              taskId: 0,
+              slotId: 3,
+              model: 'gemma-4-31B-it-GGUF-UD-Q6_K_XL',
+              includesModelLoading: true,
+              phase: InferencePhase.generating,
+              startedAt: now.subtract(const Duration(seconds: 45)),
+              updatedAt: now,
+            ),
+          ],
+          now: now,
+        ),
+      );
+
+      final loadingLabel = find.text('Loading');
+      final loadingStage = find.ancestor(
+        of: loadingLabel,
+        matching: find.byType(AnimatedContainer),
+      );
+      expect(loadingStage, findsOneWidget);
+      expect(
+        (tester.getCenter(loadingLabel).dx - tester.getCenter(loadingStage).dx)
+            .abs(),
+        lessThan(0.5),
+      );
+    });
+
     testWidgets('keeps the main request expanded while secondary rows toggle', (
       tester,
     ) async {
@@ -538,7 +851,6 @@ InferenceTaskActivity _task({
   updatedAt: startedAt.add(const Duration(seconds: 3)),
   promptProgress: progress,
   promptTokensPerSecond: progress == null ? null : 800,
-  promptProgressPerSecond: progress == null ? null : .04,
   decodedTokens: phase == InferencePhase.generating ? 128 : null,
   generationTokensPerSecond: phase == InferencePhase.generating ? 42 : null,
 );
