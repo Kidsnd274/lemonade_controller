@@ -4,102 +4,147 @@
 
 # Lemonade Controller 🍋
 
-**Manage your Lemonade Server AI models from anywhere — desktop or phone.**
+**A cross-platform control center for your Lemonade Server.**
 
-A cross-platform companion app for [Lemonade Server](https://github.com/lemonade-sdk/lemonade).
-Load and unload models, pull new checkpoints from Hugging Face, watch live
-server health, and organize your favorite model configurations into
-reusable presets — all from a clean, responsive UI.
+Browse and pull models, manage model slots, follow live inference, inspect
+CPU/GPU/NPU performance, and watch server logs from a responsive desktop or
+mobile interface.
 
-[![Platform: Windows](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white)](#download--install-)
-[![Platform: macOS](https://img.shields.io/badge/platform-macOS-000000?logo=apple&logoColor=white)](#download--install-)
-[![Platform: Linux](https://img.shields.io/badge/platform-Linux-FCC624?logo=linux&logoColor=black)](#download--install-)
-[![Platform: Android](https://img.shields.io/badge/platform-Android-3DDC84?logo=android&logoColor=white)](#download--install-)
-[![Built with Flutter](https://img.shields.io/badge/built%20with-Flutter-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
-[![State: Riverpod](https://img.shields.io/badge/state-Riverpod-1976D2)](https://riverpod.dev)
+[![Latest release](https://img.shields.io/github/v/release/Kidsnd274/lemonade_controller?display_name=tag&sort=semver&label=latest&color=2E7D32)](https://github.com/Kidsnd274/lemonade_controller/releases/latest)
+[![Platform: Windows](https://img.shields.io/badge/Windows-0078D6?logo=windows&logoColor=white)](#download)
+[![Platform: macOS](https://img.shields.io/badge/macOS-000000?logo=apple&logoColor=white)](#download)
+[![Platform: Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)](#download)
+[![Platform: Android](https://img.shields.io/badge/Android-3DDC84?logo=android&logoColor=white)](#download)
+[![Built with Flutter](https://img.shields.io/badge/Flutter-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
+
+[**Download the latest release**](https://github.com/Kidsnd274/lemonade_controller/releases/latest)
+·
+[All releases](https://github.com/Kidsnd274/lemonade_controller/releases)
+·
+[Lemonade Server](https://github.com/lemonade-sdk/lemonade)
 
 </div>
 
----
+> [!NOTE]
+> Lemonade Controller is an unofficial, community-built companion for
+> [Lemonade Server](https://github.com/lemonade-sdk/lemonade).
 
-> **Note:** This is an unofficial, community-built controller for Lemonade Server.
+## What is Lemonade Controller?
 
-## Features ✨
+Lemonade Server gives you a local API for running AI models. Lemonade
+Controller puts a full graphical interface on top of it, so you can manage a
+server on the same machine or elsewhere on your network without reaching for
+the terminal.
 
-- **Live Server Dashboard** — See server health, the active model, loaded/loading models, model slot usage, pull/download progress, and your system specs at a glance.
-- **Model Catalog** — Browse, search, filter (by `user.` prefix or quantization), and favorite models from your server's catalog.
-- **One-Tap Model Actions** — Load, unload, configure-and-load, or delete any model from its dedicated details page.
-- **Pull from Hugging Face** — Pull new models by checkpoint/recipe with labels (`reasoning`, `vision`, `embedding`, `reranking`) and watch live download progress (percent, file, bytes, speed) via SSE.
-- **Load Presets** — Create, edit, and reorder presets that bundle per-model options (`ctx_size`, `llamacpp_backend`, `llamacpp_args`) so you can batch-load your favorite setups.
-- **VRAM Estimation** — See estimated VRAM usage per model and per preset, with editable model parameter overrides through either a form UI or a JSON editor.
-- **Multi-Server Profiles** — Save multiple Lemonade Server endpoints and switch between them instantly.
-- **Portable Settings** — Export and import all app settings as JSON, or reset everything to defaults in one click.
-- **Appearance Controls** — System/light/dark theme and adjustable UI scaling.
-- **Responsive Layout** — A unified navigation shell that adapts to mobile, tablet, and desktop.
+It is built for both quick everyday actions—loading a favourite model or
+checking a download—and deeper server visibility, including model slots,
+inference stages, request statistics, hardware telemetry, and live logs.
 
-## Screenshots 📸
-<img src="docs/images/desktop.png" alt="Desktop" width="40%" />
+## Screenshots
 
-<div align="left">
-  <img src="docs/images/image1.jpg" alt="Screenshot 1" width="15%" />
-  <img src="docs/images/image2.jpg" alt="Screenshot 2" width="15%" />
-  <img src="docs/images/image3.jpg" alt="Screenshot 3" width="15%" />
-  <img src="docs/images/image4.jpg" alt="Screenshot 4" width="15%" />
-  <img src="docs/images/image5.jpg" alt="Screenshot 5" width="15%" />
+<img src="docs/images/desktop.png" alt="Lemonade Controller desktop dashboard" width="100%" />
+
+<div align="center">
+  <img src="docs/images/image1.jpg" alt="Lemonade Controller mobile dashboard" width="18%" />
+  <img src="docs/images/image2.jpg" alt="Lemonade Controller model catalog" width="18%" />
+  <img src="docs/images/image3.jpg" alt="Lemonade Controller model details" width="18%" />
+  <img src="docs/images/image4.jpg" alt="Lemonade Controller model pull workflow" width="18%" />
+  <img src="docs/images/image5.jpg" alt="Lemonade Controller presets" width="18%" />
 </div>
 
-## Download & Install 📦
+## Features
 
-Prebuilt releases are available on the [Releases page](https://github.com/Kidsnd274/lemonade_controller/releases).
+### Model management
 
-Supported platforms:
+- Browse the server's complete model catalog with search, favourites,
+  Custom/Built-in filters, and quantization filters.
+- Inspect model metadata, local files, quantization, maximum context window,
+  estimated VRAM usage, and update availability.
+- Load, unload, configure, update, or delete models from one interface.
+- Configure context size, backends, runtime arguments, image-generation
+  options, model pinning, automatic eviction, idle timeouts, and eviction
+  weighting.
+- Save multi-model load presets, estimate their combined VRAM use, reorder
+  entries, and launch the whole setup in one action.
 
-- **Windows** — Portable `.zip` or Inno Setup installer
-- **Android** — APK (split per ABI)
-- **macOS** — Apple Silicon, Intel, or Universal bundles
-- **Linux** — `.deb` and `.rpm` packages
-- **iOS / Web** — Build from source (see below)
+### Pulls and downloads
 
-## Usage 🚀
+- Paste a Hugging Face repository or `lemonade pull` command and select from
+  the available quantization variants.
+- Automatically fill the suggested model name, recipe, capability labels, and
+  multimodal projection file when the server provides them.
+- Follow percentage, current file, bytes transferred, and download speed
+  inline on the Pull page.
+- Manage active, paused, completed, and failed jobs from the dedicated
+  Downloads page, including pause, resume, cancel, and remove controls.
 
-1. Make sure you have a running [Lemonade Server](https://github.com/lemonade-sdk/lemonade) instance you can reach over the network.
-2. Install and launch Lemonade Controller.
-3. Open **Settings → Profiles** and add your server's API base URL (default: `http://localhost:8020/api/v1`).
-4. Head to the **Home** tab to see your server's status, or jump into **Models**, **Pull**, or **Presets** to start managing your models.
+### Monitoring and observability
 
-Your profiles, favorites, presets, refresh preferences, theme/UI scale, and model parameter overrides are all persisted locally on your device.
+- See server health, version, WebSocket port, available model slots, loaded
+  models, pinned models, and models currently loading.
+- Track concurrent inference requests live, including auto-loading, prompt,
+  generation, completion, elapsed time, and estimated time remaining.
+- Review the latest request's prompt tokens, generated tokens, time to first
+  token, and generation rate.
+- Monitor CPU, memory, GPU, VRAM, and NPU utilization with live meters and
+  history charts.
+- Stream server logs with severity and tag filters, optional autoscroll, local
+  clearing, and reconnect controls.
 
----
+### Profiles and personalization
 
-## For Developers 👩‍💻
+- Save and switch between multiple local or remote Lemonade Server profiles.
+- Connect through bearer-token authentication, custom HTTP headers, and an
+  optional WebSocket URL override.
+- Test a server connection before saving it.
+- Choose system, light, or dark appearance and adjust the UI scale.
+- Configure model refresh and performance-sampling intervals.
+- Export, import, or reset locally stored settings.
 
-### Tech Stack 🛠️
+## Download
 
-- **Framework**: Flutter (Dart)
-- **State Management**: Riverpod
-- **HTTP Client**: Dio
-- **Storage**: SharedPreferences
-- **Utilities**: Logger, File Picker, Package Info Plus
+Prebuilt packages are published on the
+[GitHub Releases page](https://github.com/Kidsnd274/lemonade_controller/releases/latest).
 
-### API Integration
+| Platform | Available packages |
+| --- | --- |
+| **Windows x64** | Installer (`.exe`) or portable archive (`.zip`) |
+| **macOS** | Apple Silicon, Intel, or Universal archives (`.zip`) |
+| **Linux x64** | Debian (`.deb`) or RPM (`.rpm`) package |
+| **Android** | `arm64-v8a`, `armeabi-v7a`, or `x86_64` APK |
+| **iOS / Web** | Build from source |
 
-The app integrates with [Lemonade Server](https://github.com/lemonade-sdk/lemonade) using a configurable API base URL (default: `http://localhost:8020/api/v1`).
+For Android, `arm64-v8a` is the right choice for most modern phones and
+tablets. On macOS, choose `arm64` for Apple Silicon or `x64` for Intel; the
+Universal build supports both.
 
-- `GET /system-info` — System/device info and recipe/backend capabilities
-- `GET /health` — Server status, active model, loaded models, and capacity
-- `GET /models` — Model catalog
-- `POST /load` — Load a model (optionally with runtime options)
-- `POST /unload` — Unload a model
-- `POST /delete` — Delete a model
-- `POST /pull` — Pull a model with streaming progress events (SSE)
+## Quick start
 
-### Prerequisites
+1. Start a [Lemonade Server](https://github.com/lemonade-sdk/lemonade) that is
+   reachable from your device.
+2. Download and launch Lemonade Controller.
+3. Open **Settings → Server Profiles**, add the API base URL, and use
+   **Test Connection** to verify it. The default local URL is
+   `http://localhost:8020/api/v1`.
+4. Open **Home** for an overview, **Models** to manage the catalog, or **Pull**
+   to download a model from Hugging Face.
 
-- Flutter SDK `^3.10.8`
-- Dart SDK `^3.10.8`
-- A running Lemonade Server API endpoint
+Lemonade Server 10.10 or newer is recommended for the complete current feature
+set. The app detects unsupported endpoints and keeps compatible areas
+available when connected to an older server.
 
-### Development Setup
+App settings—including profiles, favourites, presets, refresh preferences,
+appearance, and model parameter overrides—are stored locally on the device.
+
+## Build from source
+
+### Requirements
+
+- Flutter SDK with a Dart version compatible with `^3.10.8`
+- A reachable Lemonade Server API endpoint
+- Platform build tooling for your chosen target
+
+### Run locally
 
 ```bash
 git clone https://github.com/Kidsnd274/lemonade_controller.git
@@ -108,47 +153,64 @@ flutter pub get
 flutter run
 ```
 
-### Supported Platforms
+### Build and package
 
-Android · iOS · Windows · macOS · Linux · Web
+The scripts in `scripts/` read the app version from `pubspec.yaml` and place
+release artifacts in `dist/`:
 
-### Build & Distribution
+- `scripts/build_windows.bat` — Windows portable archive and Inno Setup
+  installer
+- `scripts/build_android.bat` — versioned, ABI-split Android APKs
+- `scripts/build_macos.sh` — Apple Silicon, Intel, and Universal archives
+- `scripts/build_linux.sh` — Debian and RPM packages
 
-Preconfigured scripts are available in `scripts/`:
+## API coverage
 
-- **Windows**: `scripts/build_windows.bat`
-  - Builds Windows release, zips portable output, and creates an Inno Setup installer.
-- **Android**: `scripts/build_android.bat`
-  - Builds APKs (split per ABI by default) and copies versioned artifacts into `dist/`.
-- **macOS**: `scripts/build_macos.sh`
-  - Builds and packages Apple Silicon, Intel, and Universal zip bundles.
-- **Linux**: `scripts/build_linux.sh`
-  - Builds release and packages both DEB and RPM artifacts (via `fastforge` or `flutter_distributor`).
+Lemonade Controller uses the configurable Lemonade Server API base URL
+(`http://localhost:8020/api/v1` by default).
 
-Most scripts infer app version from `pubspec.yaml` and write outputs to `dist/`.
+| Area | Endpoints |
+| --- | --- |
+| Server and hardware | `GET /health`, `GET /system-info`, `GET /system-stats`, `GET /stats` |
+| Models | `GET /models`, `GET /models/{id}/files` |
+| Model lifecycle | `POST /load`, `POST /unload`, `POST /delete` |
+| Pulls | `GET /pull/variants`, `POST /pull` |
+| Downloads | `GET /downloads`, `POST /downloads/control` |
+| Live activity | Lemonade Server WebSocket log stream |
 
-### Project Structure
+## Tech stack
+
+- [Flutter](https://flutter.dev) and Dart
+- [Riverpod](https://riverpod.dev) for application state
+- [Dio](https://pub.dev/packages/dio) for HTTP
+- [fl_chart](https://pub.dev/packages/fl_chart) for performance history
+- SharedPreferences for local settings
+- WebSocket Channel for live server activity
+
+## Project structure
 
 ```text
 lib/
-├── main.dart                 # App bootstrap + theme/UI scale setup
-├── models/                   # Domain models (health, system info, presets, pull events, etc.)
+├── main.dart                 # App bootstrap, theme, and UI scaling
+├── models/                   # API and local domain models
 ├── pages/
-│   ├── home/                 # Dashboard cards and status views
-│   ├── models_list/          # Search/filter/favourites model catalog
-│   ├── model_page/           # Detailed model actions + VRAM estimate
-│   ├── pull/                 # Pull form + live download progress
-│   ├── presets/              # Preset list/editor and batch loading
-│   ├── settings/             # Profiles, appearance, import/export, overrides
-│   └── widgets/              # Shared navigation shell widgets
-├── providers/                # Riverpod providers and async state orchestration
-├── services/                 # API client + settings persistence
-├── theme/                    # App theming
-└── utils/                    # Formatters, quant colors, VRAM estimator
+│   ├── home/                 # Server dashboard and live inference activity
+│   ├── models_list/          # Searchable and filterable model catalog
+│   ├── model_page/           # Model metadata, files, VRAM, and actions
+│   ├── pull/                 # Hugging Face variant picker and pull form
+│   ├── downloads/            # Server-managed download queue
+│   ├── performance/          # CPU, memory, GPU, VRAM, and NPU charts
+│   ├── presets/              # Multi-model load presets
+│   ├── logs/                 # Filterable live server logs
+│   ├── settings/             # Profiles, appearance, data, and overrides
+│   └── widgets/              # Shared responsive navigation
+├── providers/                # Riverpod state and async orchestration
+├── services/                 # API, WebSocket, and settings services
+├── theme/                    # Material theme definitions
+└── utils/                    # Formatters, quantization, logging, and VRAM
 ```
 
-### Notes
+## Feedback
 
-- App settings (profiles, favorites, presets, refresh preferences, theme/UI scale, model param overrides) are persisted locally.
-- Download progress and model loading state are reflected both in their dedicated pages and the Home dashboard.
-- The project is actively evolving; behavior and APIs may continue to improve between releases.
+Found a bug or have an idea? Open an
+[issue](https://github.com/Kidsnd274/lemonade_controller/issues).
